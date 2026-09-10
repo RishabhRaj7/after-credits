@@ -39,7 +39,7 @@ function ODigit({ value, delay }: { value: number; delay: number }) {
 function YearPlate({ year, titles, hours }: { year: number; titles: number; hours: number }) {
   const digits = String(year).split('').map(Number);
   return (
-    <div className="relative z-20 flex flex-col items-center">
+    <div className="year-plate relative z-20 flex flex-col items-center">
       <div className="border border-blood/70 bg-ink px-7 pb-3 pt-5 shadow-[0_0_50px_rgba(229,9,20,0.14)]">
         {/* BUG FIX: each digit window is exactly 1em tall with line-height 1,
             so the full year is always visible — never clipped mid-glyph */}
@@ -159,7 +159,7 @@ function ReelBlock({
 
   return (
     <motion.div
-      className={`group relative ${first ? 'mt-12' : 'mt-2'}`}
+      className={`reel-block group relative ${first ? 'mt-12' : 'mt-2'}`}
       initial={{ opacity: 0, y: 26 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-12% 0px' }}
@@ -177,7 +177,7 @@ function ReelBlock({
           side === 'l' ? 'right-1/2' : 'left-1/2'
         }`}
       />
-      <span className="absolute left-1/2 top-1/2 z-10 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.85)]" />
+      <span className="reel-tick absolute left-1/2 top-1/2 z-10 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.85)]" />
 
       <div
         className={`relative ${
@@ -200,10 +200,11 @@ function ReelBlock({
           <motion.button
             type="button"
             onClick={() => onSelect(entry)}
+            aria-label={`View ${entry.title}`}
             whileHover={{ scale: 1.95, zIndex: 60 }}
             whileTap={{ scale: 1.86 }}
             transition={{ type: 'spring', stiffness: 320, damping: 24 }}
-            className="relative block aspect-[2/3] w-[74px] shrink-0 cursor-pointer outline-none sm:w-[88px]"
+            className="reel-poster relative block aspect-[2/3] w-[74px] shrink-0 cursor-pointer outline-none sm:w-[88px]"
             style={{ zIndex: 2 }}
           >
             <ReelPosterCard entry={entry} num={num} />
@@ -269,10 +270,10 @@ function YearSection({
   const spineW = Math.round(4 + density * 18);
 
   return (
-    <section id={`y${group.year}`} ref={ref} className="relative">
+    <section id={`y${group.year}`} ref={ref} className="reel-year relative">
       {/* spine segment — thickness + glow carry density */}
       <div
-        className={`absolute bottom-0 left-1/2 top-0 -translate-x-1/2 ${density > 0.45 ? 'spine-hot' : ''}`}
+        className={`reel-spine absolute bottom-0 left-1/2 top-0 -translate-x-1/2 ${density > 0.45 ? 'spine-hot' : ''}`}
         style={{
           width: spineW,
           borderRadius: spineW / 2,
@@ -317,7 +318,7 @@ function SprocketRail({ side }: { side: 'l' | 'r' }) {
 
 function Intermission({ stat }: { stat: DecadeStat }) {
   return (
-    <div className="relative my-10 overflow-hidden border-y border-line bg-coal/70 py-16 text-center">
+    <div className="reel-intermission relative my-10 overflow-hidden border-y border-line bg-coal/70 py-16 text-center">
       <SprocketRail side="l" />
       <SprocketRail side="r" />
       <motion.div
@@ -369,8 +370,8 @@ export function ChipsBar({
   const total = groups.reduce((s, g) => s + g.items.length, 0);
   const chip = 'rounded-full border px-2.5 py-1 font-tele text-[9.5px] tracking-[0.14em] transition-all duration-200 cursor-pointer';
   return (
-    <div className="sticky top-12 z-40 border-b border-line bg-ink/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-1.5 px-5 py-2.5">
+    <div className="timeline-filters sticky top-12 z-40 border-b border-line bg-ink/95 backdrop-blur-md">
+      <div className="timeline-filter-scroll mx-auto flex max-w-6xl flex-wrap items-center gap-1.5 px-5 py-2.5">
         <span className="mr-2 font-tele text-[9px] tracking-[0.3em] text-blood">{label}</span>
 
         {/* films / series / both */}
@@ -385,6 +386,7 @@ export function ChipsBar({
             <button
               key={id}
               onClick={() => onTypeFilter(id)}
+              aria-pressed={typeFilter === id}
               className={`flex cursor-pointer items-center gap-1 px-2.5 py-1 font-tele text-[9px] tracking-[0.16em] transition-colors duration-200 ${
                 id !== 'all' ? 'border-l border-line' : ''
               } ${typeFilter === id ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'}`}
@@ -402,6 +404,7 @@ export function ChipsBar({
             <button
               key={d.decade}
               onClick={() => onToggleDecade(d.decade)}
+              aria-pressed={allIn}
               className={`${chip} ${allIn ? 'border-blood/70 bg-blood/15 text-bone' : 'border-line text-dim hover:border-fog/60 hover:text-fog'}`}
             >
               {d.decade}s
@@ -415,6 +418,7 @@ export function ChipsBar({
             <button
               key={g.year}
               onClick={() => onToggleYear(g.year)}
+              aria-pressed={!off}
               title={`${g.items.length} titles`}
               className={`${chip} ${off ? 'border-line text-dim line-through opacity-50' : 'border-fog/40 text-bone hover:border-blood/70'}`}
             >

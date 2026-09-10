@@ -23,7 +23,7 @@ export default function DetailPanel({
     <AnimatePresence>
       {entry && (
         <motion.div
-          className="fixed inset-0 z-[90] flex items-center justify-center p-4 sm:p-8"
+          className="detail-overlay fixed inset-0 z-[90] flex items-center justify-center p-4 sm:p-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -36,7 +36,10 @@ export default function DetailPanel({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="relative w-full max-w-2xl overflow-hidden border border-line bg-coal shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detail-title"
+            className="detail-panel relative w-full max-w-2xl overflow-hidden border border-line bg-coal shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]"
           >
             <div className="absolute inset-x-0 top-0 h-0.5 bg-blood" />
             <button
@@ -55,7 +58,7 @@ export default function DetailPanel({
                   {entry.type === 'movie' ? 'FEATURE' : 'SERIES'}
                   {entry.favorite && <span className="ml-3 inline-flex items-center gap-1 text-bone">· FAVORITE <Heart size={9} className="fill-blood text-blood" /></span>}
                 </div>
-                <h2 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-bone">
+                <h2 id="detail-title" className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-bone">
                   {entry.title}
                 </h2>
                 <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 font-tele text-[11px]">

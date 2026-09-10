@@ -38,6 +38,14 @@ export default function App() {
   const [importTab, setImportTab] = useState<'import' | 'edit'>('import');
   const [behindOpen, setBehindOpen] = useState(false);
 
+  // On phones, let the open panel scroll without moving the page underneath.
+  useEffect(() => {
+    if (!(selected || importOpen || behindOpen) || !window.matchMedia('(max-width: 1023px)').matches) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [selected, importOpen, behindOpen]);
+
   /* the active library, in priority order: server store → browser store →
      baked-in sample export */
   const [library, setLibrary] = useState<Entry[]>(() => loadStoredLibrary() ?? LIBRARY);
@@ -75,7 +83,11 @@ export default function App() {
   /* page scroll → top-bar hairline + visibility */
   const { scrollY, scrollYProgress } = useScroll();
   useMotionValueEvent(scrollY, 'change', (v) => {
-    const show = v > window.innerHeight * 0.9;
+    const narrow = window.matchMedia('(max-width: 1023px)').matches;
+    const threshold = narrow && viewsRef.current
+      ? Math.max(120, viewsRef.current.offsetTop - 160)
+      : window.innerHeight * 0.9;
+    const show = v > threshold;
     setBarVisible((prev) => (prev === show ? prev : show));
   });
 
@@ -90,7 +102,7 @@ export default function App() {
       window.setTimeout(() => {
         setView(v);
         if (viewsRef.current) {
-          const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - 48;
+          const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - (window.matchMedia('(max-width: 1023px)').matches ? 100 : 48);
           window.scrollTo({ top: y, behavior: 'auto' });
         }
       }, 380);
@@ -112,7 +124,7 @@ export default function App() {
   }, []);
   const onJourney = useCallback(() => {
     if (!viewsRef.current) return;
-    const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - 56;
+    const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - (window.matchMedia('(max-width: 1023px)').matches ? 108 : 56);
     window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   }, []);
   const onImported = useCallback(async (entries: Entry[]) => {

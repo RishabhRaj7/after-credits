@@ -123,7 +123,7 @@ export default function ImportPanel({
           }}
         >
           <motion.div
-            className="chrome-orig relative flex max-h-[88vh] w-full max-w-2xl flex-col border border-line bg-coal shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)]"
+            className="import-panel chrome-orig relative flex max-h-[88vh] w-full max-w-2xl flex-col border border-line bg-coal shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)]"
             initial={{ opacity: 0, y: 26, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
@@ -143,6 +143,7 @@ export default function ImportPanel({
               <button
                 onClick={onClose}
                 disabled={busy}
+                aria-label="Close data panel"
                 className="cursor-pointer p-1 text-dim transition-colors hover:text-bone disabled:opacity-40"
               >
                 <X size={16} />

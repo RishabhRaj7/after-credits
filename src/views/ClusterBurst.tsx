@@ -9,6 +9,7 @@ import {
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { ZoomPoster } from '../components/Poster';
 import { ChipsBar } from './Reel';
+import MobileTrack from './MobileTrack';
 import {
   clusterize,
   decadeStats,
@@ -52,6 +53,7 @@ interface YearBreak {
 }
 
 function buildGeo(clusters: Cluster[]) {
+  if (!clusters.length) return { nodes: [] as Node[], breaks: [] as YearBreak[], H: 280, d: '' };
   const nodes: Node[] = [];
   const breaks: YearBreak[] = [];
   let y = 210;
@@ -219,6 +221,7 @@ export default function ClusterBurst({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
+  const isNarrow = width < 984 && window.matchMedia('(max-width: 1023px)').matches;
 
   /* year/decade filter + chronological direction are shared with The Reel
      (lifted into App) so selections persist across view switches */
@@ -276,7 +279,7 @@ export default function ClusterBurst({
     const pt = pathRef.current.getPointAtLength(0);
     dotRef.current.style.left = `${pt.x / 10}%`;
     dotRef.current.style.top = `${pt.y}px`;
-  }, [geo.d]);
+  }, [geo.d, isNarrow]);
   useMotionValueEvent(progress, 'change', (v) => {
     if (!pathRef.current || !dotRef.current || !lenRef.current) return;
     const pt = pathRef.current.getPointAtLength(Math.min(1, Math.max(0, v)) * lenRef.current);
@@ -353,7 +356,14 @@ export default function ClusterBurst({
     <div className="mx-auto max-w-6xl px-5">
 
       {/* the track */}
-      <div ref={ref} className="relative" style={{ height: geo.H }}>
+      <div ref={ref} className="relative" style={{ height: isNarrow ? 'auto' : geo.H }}>
+        {!filtered.length ? (
+          <div className="py-24 text-center">
+            <h3 className="font-display text-4xl text-dim">Track empty</h3>
+            <p className="mt-3 text-sm text-fog">No titles match your filters.</p>
+            <button className="mt-5 border border-blood px-5 py-3 font-tele text-xs text-bone" onClick={() => { onHidden(() => new Set()); onTypeFilter('all'); }}>RESET FILTERS</button>
+          </div>
+        ) : isNarrow ? <MobileTrack clusters={ordered} onSelect={onSelect} /> : <>
         <svg
           className="absolute inset-0 h-full w-full"
           viewBox={`0 0 ${VB_W} ${geo.H}`}
@@ -410,6 +420,7 @@ export default function ClusterBurst({
             {filtered.length} TITLES · TO BE CONTINUED
           </div>
         </div>
+        </>}
       </div>
     </div>
     </div>

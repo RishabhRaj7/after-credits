@@ -42,7 +42,7 @@ export default function BehindScenes({ open, onClose, count }: Props) {
           }}
         >
           <motion.div
-            className="chrome-orig relative my-auto w-full max-w-2xl border border-line bg-coal p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.95)] sm:p-9"
+            className="behind-panel chrome-orig relative my-auto w-full max-w-2xl border border-line bg-coal p-6 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.95)] sm:p-9"
             initial={{ opacity: 0, y: 30, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -50,6 +50,7 @@ export default function BehindScenes({ open, onClose, count }: Props) {
           >
             <button
               onClick={onClose}
+              aria-label="Close behind the scenes"
               className="absolute right-4 top-4 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-line text-dim transition-colors hover:border-blood/60 hover:text-bone"
             >
               <X size={14} />

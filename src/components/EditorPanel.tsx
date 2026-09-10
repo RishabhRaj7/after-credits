@@ -216,7 +216,7 @@ export default function EditorPanel({ entries, onCommit }: Props) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="editor-panel flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-line px-5 py-3">
         <div className="relative flex-1">
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim" />

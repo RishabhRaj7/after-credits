@@ -55,9 +55,9 @@ export default function Hero({ order, view, onOrder, onSwitch, entries, stats }:
   }, [entries]);
   const years = `${stats.from.getUTCFullYear()} ————— ${stats.to.getUTCFullYear()}`;
   return (
-    <section className="chrome-orig relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
+    <section className="screening-hero chrome-orig relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
       {/* letterbox bar */}
-      <div className="relative z-20 flex items-center justify-between border-b border-line/60 bg-black px-4 py-2.5 font-tele text-[10px] tracking-[0.28em] text-dim sm:px-8">
+      <div className="hero-letterbox relative z-20 flex items-center justify-between border-b border-line/60 bg-black px-4 py-2.5 font-tele text-[10px] tracking-[0.28em] text-dim sm:px-8">
         <span className="text-fog">A PERSONAL SCREENING HISTORY</span>
         <span className="hidden sm:block">{years}</span>
         <span className="flex items-center gap-2">
@@ -75,7 +75,7 @@ export default function Hero({ order, view, onOrder, onSwitch, entries, stats }:
         background: 'radial-gradient(ellipse 86% 62% at 50% 47%, rgba(10,10,11,0.94) 30%, rgba(10,10,11,0.72) 68%, rgba(10,10,11,0.35) 100%)',
       }} />
 
-      <div className="relative z-20 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-4 pb-40 pt-28 sm:px-8">
+      <div className="hero-content relative z-20 mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-4 pb-40 pt-28 sm:px-8">
         <motion.div variants={rise} initial="hidden" animate="show" custom={0.05}
           className="flex items-center gap-3 font-tele text-[10px] tracking-[0.42em] text-fog sm:text-[11px]">
           <span className="slab-line w-10" />
@@ -86,7 +86,7 @@ export default function Hero({ order, view, onOrder, onSwitch, entries, stats }:
         <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-2">
           <motion.h1
             variants={rise} initial="hidden" animate="show" custom={0.15}
-            className="flex items-baseline gap-5 font-display leading-[0.82]"
+            className="hero-total flex items-baseline gap-5 font-display leading-[0.82]"
           >
             <CountUp
               value={stats.days}
@@ -132,7 +132,7 @@ export default function Hero({ order, view, onOrder, onSwitch, entries, stats }:
 
         {/* ── CONTROLS ── */}
         <motion.div variants={rise} initial="hidden" animate="show" custom={0.62}
-          className="mt-12 grid max-w-4xl gap-8 md:grid-cols-[auto_1fr] md:items-end">
+          className="hero-controls mt-12 grid max-w-4xl gap-8 md:grid-cols-[auto_1fr] md:items-end">
           <OrderToggle order={order} onChange={onOrder} />
           <ViewSwitcher view={view} onSwitch={onSwitch} />
         </motion.div>
@@ -140,7 +140,7 @@ export default function Hero({ order, view, onOrder, onSwitch, entries, stats }:
 
       {/* scroll cue */}
       <motion.div
-        className="absolute bottom-[120px] left-1/2 z-20 -translate-x-1/2"
+        className="hero-scroll-cue absolute bottom-[120px] left-1/2 z-20 -translate-x-1/2"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.6, duration: 1 }}
       >
         <div className="flex flex-col items-center gap-1.5 font-tele text-[9px] tracking-[0.34em] text-dim">

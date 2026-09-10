@@ -25,7 +25,7 @@ export function OrderToggle({ order, onChange, compact = false }: OrderProps) {
     { key: 'release', label: 'RELEASE ORDER', icon: CalendarClock, hint: 'by premiere date' },
   ];
   return (
-    <div className="flex flex-col gap-2">
+    <div className="order-toggle flex flex-col gap-2">
       {!compact && (
         <span className="font-tele text-[10px] tracking-[0.3em] text-dim uppercase">SEQUENCE</span>
       )}
@@ -36,6 +36,7 @@ export function OrderToggle({ order, onChange, compact = false }: OrderProps) {
             <button
               key={key}
               onClick={() => onChange(key)}
+              aria-pressed={active}
               className={`relative z-10 flex items-center gap-2 rounded-full px-4 py-2 font-tele text-[10px] tracking-[0.18em] transition-colors duration-200 sm:text-[11px] ${
                 active ? 'text-white' : 'text-fog hover:text-bone'
               }`}
@@ -67,7 +68,7 @@ interface SwitchProps {
 export function ViewSwitcher({ view, onSwitch }: SwitchProps) {
   const ids: ViewId[] = ['burst', 'reel'];
   return (
-    <div className="flex flex-col gap-2">
+    <div className="view-switcher flex flex-col gap-2">
       <span className="font-tele text-[10px] tracking-[0.3em] text-dim uppercase">PROJECTION</span>
       <div className="grid gap-3 sm:grid-cols-2">
         {ids.map((id, i) => {
@@ -78,6 +79,7 @@ export function ViewSwitcher({ view, onSwitch }: SwitchProps) {
             <button
               key={id}
               onClick={() => onSwitch(id)}
+              aria-pressed={active}
               className={`group relative overflow-hidden border p-4 text-left transition-colors duration-300 sm:p-5 ${
                 active
                   ? 'border-blood/80 bg-smoke'
@@ -142,9 +144,9 @@ export function TopBar({ order, view, onOrder, onSwitch, onImport, stats, progre
       animate={{ y: 0 }}
       exit={{ y: -72 }}
       transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-      className="chrome-orig fixed inset-x-0 top-0 z-[70] border-b border-line bg-ink/85 backdrop-blur-md"
+      className="projection-bar chrome-orig fixed inset-x-0 top-0 z-[70] border-b border-line bg-ink/85 backdrop-blur-md"
     >
-      <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="projection-bar-inner mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -161,13 +163,14 @@ export function TopBar({ order, view, onOrder, onSwitch, onImport, stats, progre
           <button
             onClick={onImport}
             title="Import your CSV"
+            aria-label="Import your CSV"
             className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-line px-2.5 py-1.5 font-tele text-[10px] tracking-[0.16em] text-fog transition-colors hover:border-blood/70 hover:text-bone"
           >
             <Upload size={12} strokeWidth={2.2} />
             <span className="hidden sm:inline">IMPORT</span>
           </button>
           <OrderToggle order={order} onChange={onOrder} compact />
-          <div className="hidden items-center gap-1 sm:flex">
+          <div className="compact-view-switcher hidden items-center gap-1 sm:flex">
             {(['burst', 'reel'] as ViewId[]).map((id) => {
               const Icon = id === 'burst' ? Waypoints : GalleryVertical;
               const active = view === id;
@@ -175,6 +178,7 @@ export function TopBar({ order, view, onOrder, onSwitch, onImport, stats, progre
                 <button
                   key={id}
                   onClick={() => onSwitch(id)}
+              aria-pressed={active}
                   title={VIEW_META[id].label}
                   className={`flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 font-tele text-[10px] tracking-[0.16em] transition-colors ${
                     active ? 'bg-blood text-white' : 'text-fog hover:bg-smoke hover:text-bone'

@@ -1,0 +1,190 @@
+/* Desktop keeps the original stylesheet and component geometry. */
+.mobile-menu-toggle,
+.mobile-navigation { display: none; }
+
+@media (max-width: 1023px) {
+  html { scroll-padding-top: 156px; }
+  body { min-width: 280px; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button { touch-action: manipulation; }
+  button:focus-visible, a:focus-visible, [tabindex="0"]:focus-visible {
+    outline: 2px solid var(--color-blood);
+    outline-offset: 4px;
+  }
+
+  /* All navigation remains available without squeezing the brand. */
+  .site-header .desktop-nav, .site-header .desktop-behind { display: none; }
+  .site-header > div { padding-block: 8px; }
+  .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    color: var(--color-fog);
+    border: 1px solid var(--color-line);
+  }
+  .mobile-navigation {
+    display: grid;
+    padding: 8px 20px 16px;
+    border-top: 1px solid var(--color-line);
+  }
+  .mobile-navigation button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    font-family: var(--font-tele);
+    font-size: 11px;
+    letter-spacing: .16em;
+    border-bottom: 1px solid var(--color-line);
+    text-align: left;
+  }
+  .mobile-navigation button svg, .mobile-navigation button span { color: var(--color-blood); }
+
+  /* Preserve the oversized cinematic counter, with phone-safe bounds. */
+  .screening-hero { min-height: calc(100svh - 61px); }
+  .hero-letterbox { gap: 12px; font-size: 8px; letter-spacing: .16em; }
+  .hero-letterbox > span { flex-shrink: 0; }
+  .hero-letterbox > span:nth-child(2) { display: none; }
+  .hero-content { padding: 64px 20px 100px; }
+  .hero-content > div:first-child { font-size: 9px; letter-spacing: .23em; gap: 10px; }
+  .hero-content > div:first-child > span { width: 24px; }
+  .hero-total { gap: 12px; }
+  .hero-total > span:first-child { font-size: clamp(90px, 26vw, 185px); }
+  .hero-total > span:last-child { font-size: clamp(30px, 8vw, 48px); }
+  .hero-controls { grid-template-columns: 1fr; margin-top: 30px; gap: 24px; max-width: 100%; }
+  .hero-scroll-cue { bottom: 32px; width: 100%; text-align: center; }
+  .hero-scroll-cue > div { font-size: 8px; letter-spacing: .2em; }
+  .order-toggle { min-width: 0; }
+  .order-toggle > div { width: 100%; }
+  .order-toggle button { flex: 1; justify-content: center; min-height: 40px; padding-inline: 10px; white-space: nowrap; letter-spacing: .1em; }
+  .order-toggle button svg { flex-shrink: 0; }
+  .view-switcher > div { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .view-switcher button { min-width: 0; padding: 14px 12px; }
+  .view-switcher button > div:first-of-type { gap: 6px; }
+  .view-switcher button > div:first-of-type > div { min-width: 0; }
+  .view-switcher button > div:first-of-type > svg { display: none; }
+  .view-switcher .font-display { font-size: clamp(16px, 4.4vw, 23px); }
+  .view-switcher button .text-xs { font-size: 11px; }
+  .view-switcher button > div:last-child { font-size: 8px; letter-spacing: .1em; }
+
+  /* Two predictable rows: brand/import, then sequence/projection. */
+  .projection-bar-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 44px 44px;
+    gap: 0 8px;
+    height: 100px;
+    padding: 4px 12px 8px;
+  }
+  .projection-bar-inner > div:first-child { grid-column: 1; grid-row: 1; }
+  .projection-bar-inner > div:last-child { display: contents; }
+  .projection-bar-inner > div:first-child > span { display: none; }
+  .projection-bar-inner > div:last-child > button { grid-column: 2; grid-row: 1; justify-self: end; min-width: 44px; min-height: 40px; justify-content: center; }
+  .projection-bar-inner .order-toggle { grid-column: 1; grid-row: 2; justify-self: start; }
+  .projection-bar-inner .order-toggle > div { padding: 2px; }
+  .projection-bar-inner .order-toggle button { font-size: 9px; padding-inline: 8px; gap: 5px; min-height: 36px; letter-spacing: .06em; }
+  .compact-view-switcher { display: flex; grid-column: 2; grid-row: 2; gap: 2px; }
+  .compact-view-switcher button { min-height: 40px; padding-inline: 8px; font-size: 9px; letter-spacing: .04em; gap: 4px; }
+  .compact-view-switcher button svg { display: none; }
+
+  /* A single swipeable filter row, not a screenful of wrapped chips. */
+  .timeline-filters { top: 100px; }
+  .timeline-filter-scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+    padding: 8px 16px;
+    gap: 8px;
+  }
+  .timeline-filter-scroll > * { flex-shrink: 0; white-space: nowrap; }
+  .timeline-filter-scroll > span:first-child,
+  .timeline-filter-scroll > span:last-child { display: none; }
+  .timeline-filter-scroll button { min-height: 36px; }
+  .timeline-filter-scroll > div { overflow: visible; }
+  .timeline-filter-scroll > div > button:first-child { border-radius: 999px 0 0 999px; }
+  .timeline-filter-scroll > div > button:last-child { border-radius: 0 999px 999px 0; }
+  main h2 { font-size: clamp(38px, 8.8vw, 60px); overflow-wrap: anywhere; }
+  main .chrome-orig button { min-height: 40px; }
+
+  /* The narrow burst track has natural-flow captions and native poster rails. */
+  .mobile-track { padding-top: 32px; }
+  .mobile-track-year { display: flex; align-items: center; gap: 16px; margin: 16px 0 28px; }
+  .mobile-track-year > span:first-child { font-size: 64px; line-height: 1; }
+  .mobile-track-year > span:last-child { font-size: 8px; letter-spacing: .2em; color: var(--color-dim); }
+  .mobile-cluster { position: relative; border-left: 1px solid #6a1119; padding: 0 0 40px 20px; margin-left: 6px; min-width: 0; }
+  .mobile-cluster-dot { position: absolute; top: 2px; left: -5px; width: 9px; height: 9px; border: 2px solid var(--color-blood); border-radius: 50%; background: var(--color-ink); box-shadow: 0 0 10px #e5091440; }
+  .mobile-poster-row { display: flex; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 18px 2px 14px; margin-right: -4px; scrollbar-width: thin; scrollbar-color: var(--color-line) transparent; }
+  .mobile-poster-row > button { flex: 0 0 clamp(116px, 34vw, 160px); scroll-snap-align: start; align-self: flex-start; min-width: 0; }
+
+  /* Move the reel's spine away from text on single-column screens. */
+  .reel-year { padding-left: 18px; scroll-margin-top: 156px; }
+  .reel-spine { left: 2px; max-width: 4px; }
+  .reel-tick { left: -16px; }
+  .reel-year > div:nth-child(2) { justify-content: flex-start; }
+  .year-plate { align-items: flex-start; }
+  .year-plate > div:first-child { padding: 12px 18px 10px; }
+  .year-plate > div:first-child > div:first-child { flex-direction: row; font-size: 54px !important; }
+  .year-plate > div:first-child > div:last-child { display: none; }
+  .year-plate > div:last-child { font-size: 9px; letter-spacing: .16em; }
+  .reel-block { margin-top: 12px; }
+  .reel-block > .md\:block { display: none; }
+  .reel-block > div:last-child { width: auto; margin-inline: 0; }
+  .reel-block > div:last-child > div:last-child { flex-direction: row; }
+  .reel-block > div:last-child > div:last-child > div:last-child { text-align: left; }
+  .reel-block > div:last-child > div:last-child > div:last-child > div:first-child { justify-content: flex-start; }
+  .reel-block h3 { white-space: normal; overflow: visible; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
+  .reel-block > div:last-child > div:last-child { padding-inline: 8px; gap: 14px; }
+  .reel-block .font-tele { letter-spacing: .08em; }
+  .reel-poster { transform: none !important; }
+  .reel-intermission { padding: 36px 28px; }
+  .reel-intermission .text-6xl { font-size: 48px; }
+  .reel-intermission .text-\[9px\] { font-size: 8px; letter-spacing: .12em; }
+
+  /* Panels fit the dynamic viewport and scroll internally, including landscape. */
+  .detail-overlay { padding: 12px; }
+  .detail-panel { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+  .detail-panel > button { position: sticky; top: 12px; float: right; width: 44px; height: 44px; margin: 12px 12px -56px 0; }
+  .detail-panel > div:last-child { flex-direction: column; }
+  .detail-panel > div:last-child > div:first-child { width: 104px; margin: 20px 20px 0; }
+  .detail-panel > div:last-child > div:last-child { padding: 20px; min-width: 0; }
+  .detail-panel h2 { font-size: 25px; padding-right: 8px; overflow-wrap: anywhere; }
+  .detail-panel .grid { grid-template-columns: 1fr; gap: 12px; }
+  .detail-panel .grid svg { flex-shrink: 0; }
+  .import-panel { max-height: calc(100dvh - 32px); min-width: 0; }
+  .import-panel > div:first-child, .import-panel > div:nth-child(2), .import-panel > div:last-child { flex-shrink: 0; }
+  .import-panel > div:first-child { padding: 8px 16px; }
+  .import-panel > div:first-child button { width: 44px; height: 44px; display: grid; place-items: center; }
+  .import-panel > div:last-child:not(.editor-panel) { flex-wrap: wrap; padding: 12px 16px; }
+  .import-panel > div:last-child:not(.editor-panel) > div { margin-left: auto; }
+  .import-panel button { min-height: 40px; }
+  .import-panel input, .import-panel select, .import-panel textarea { font-size: 16px; min-width: 0; }
+  .import-panel .space-y-4 { min-height: 0; overscroll-behavior: contain; padding-inline: 16px; }
+  .import-panel .space-y-4 .flex.gap-2 { flex-wrap: wrap; }
+  .import-panel .space-y-4 button { max-width: 100%; overflow-wrap: anywhere; }
+  .editor-panel > div:first-child { flex-wrap: wrap; padding: 12px; }
+  .editor-panel > div:first-child > div { flex-basis: calc(100% - 70px); min-width: 0; }
+  .editor-panel > div:first-child > button { margin-left: auto; }
+  .editor-panel .space-y-3 > div:last-child { flex-wrap: wrap; }
+  .editor-panel .space-y-3 > div:last-child > div { margin-left: auto; }
+  .editor-panel .grid > div { min-width: 0; }
+  .behind-panel { padding: 24px 20px; overflow-wrap: anywhere; }
+  .behind-panel > button { width: 44px; height: 44px; top: 8px; right: 8px; }
+  .behind-panel > div:first-of-type { padding-right: 28px; font-size: 9px; letter-spacing: .15em; }
+  .behind-panel h2 { font-size: 38px; }
+  footer button, footer a { min-height: 40px; display: inline-flex; align-items: center; }
+}
+
+@media (max-width: 359px) {
+  .hero-letterbox { font-size: 7px; letter-spacing: .1em; }
+  .hero-content { padding-inline: 16px; }
+  .hero-total { gap: 8px; }
+  .view-switcher button { padding: 12px 9px; }
+  .view-switcher button .text-xs { font-size: 10px; }
+  .projection-bar-inner { padding-inline: 8px; gap: 0 4px; }
+  .projection-bar-inner .order-toggle button { padding-inline: 6px; }
+  .compact-view-switcher button { padding-inline: 6px; }
+}
