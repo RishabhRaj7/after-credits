@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useInView, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { ArrowDown, ArrowUp, Film, Heart, Tv } from 'lucide-react';
 import { posterSrc } from '../components/Poster';
@@ -449,44 +450,145 @@ function ScrubberRail({
   container: React.RefObject<HTMLDivElement | null>;
 }) {
   const { scrollYProgress } = useScroll({ target: container, offset: ['start 0.5', 'end 0.6'] });
+  const thumbTop = useScrollTop(scrollYProgress);
   const max = Math.max(...groups.map((g) => g.items.length), 1);
+  /* place dots by cumulative content weight so the rail mirrors the page:
+     heavy years stretch their gap, light years sit close together, and the
+     scroll thumb lands on the dot of the year actually on screen */
+  const BASE = 3; // plate + breathing room per year, in title units
+  const totalW = groups.reduce((s, g) => s + g.items.length + BASE, 0) || 1;
+  const fracs: number[] = [];
+  {
+    let acc = 0;
+    for (const g of groups) {
+      const w = g.items.length + BASE;
+      fracs.push((acc + w / 2) / totalW);
+      acc += w;
+    }
+  }
   const jump = (y: number) => {
     if (hidden.has(y)) return;
     document.getElementById(`y${y}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  return (
-    <div className="fixed right-4 top-1/2 z-40 hidden h-[58vh] w-6 -translate-y-1/2 lg:block">
-      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-blood/60 via-blood/25 to-blood/60" />
-      <motion.div
-        className="absolute left-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ember shadow-[0_0_10px_rgba(255,43,56,0.9)]"
-        style={{ top: useScrollTop(scrollYProgress) }}
-      />
-      {groups.map((g, i) => {
-        const frac = groups.length === 1 ? 0.5 : i / (groups.length - 1);
-        const size = 5 + (g.items.length / max) * 8;
-        const off = hidden.has(g.year);
-        const active = activeYear === g.year;
-        return (
-          <button
-            key={g.year}
-            onClick={() => jump(g.year)}
-            title={`${g.year} — ${g.items.length} titles`}
-            className="group absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ top: `${frac * 100}%` }}
-          >
-            <span
-              className={`block rounded-full transition-all ${
-                off ? 'bg-line' : active ? 'bg-ember shadow-[0_0_10px_rgba(255,43,56,0.9)]' : 'bg-fog group-hover:bg-blood'
-              }`}
-              style={{ width: size, height: size }}
-            />
-            <span className="absolute right-5 top-1/2 -translate-y-1/2 whitespace-nowrap font-tele text-[9px] tracking-[0.2em] text-fog opacity-0 transition-opacity group-hover:opacity-100">
-              {g.year}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+
+  /* only surface the rail while the reel section actually occupies the viewport */
+  const [inReel, setInReel] = useState(false);
+  useEffect(() => {
+    const el = container.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setInReel(entry.isIntersecting), {
+      threshold: 0,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [container]);
+
+  /* positional sync: the last year section whose top crossed the 45% line wins.
+     direct measurement never skips a year, whatever the scroll speed */
+  const [activeYearNow, setActiveYearNow] = useState<number | null>(activeYear);
+  useEffect(() => {
+    if (!inReel) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      /* a year owns the rail dot while its section spans the vertical centre
+         of the viewport — the point you're actually reading at */
+      const line = window.innerHeight * 0.5;
+      let current: number | null = null;
+      for (const g of groups) {
+        const el = document.getElementById(`y${g.year}`);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= line) current = g.year;
+        else break;
+      }
+      /* end clamp: a short final year may never push its top past centre
+         before the page runs out — keep it lit once we've scrolled through it */
+      const last = groups[groups.length - 1];
+      if (last) {
+        const el = document.getElementById(`y${last.year}`);
+        if (el && el.getBoundingClientRect().bottom <= line) current = last.year;
+      }
+      setActiveYearNow((prev) => (prev === current ? prev : current));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [inReel, groups]);
+
+  if (groups.length === 0) return null;
+  /* portal to <body>: an ancestor motion.main carries filter: blur(0px), which
+     would hijack position:fixed and pin the rail to the page's middle instead
+     of the viewport */
+  return createPortal(
+    <AnimatePresence>
+      {inReel && (
+        <motion.div
+          key="seek-rail"
+          initial={{ opacity: 0, x: 26, y: '-50%' }}
+          animate={{ opacity: 1, x: 0, y: '-50%' }}
+          exit={{ opacity: 0, x: 26, y: '-50%' }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="fixed right-2 top-1/2 z-40 flex h-[54vh] max-h-[540px] flex-col items-center md:right-5"
+        >
+      <span className="mb-3 font-tele text-[8px] tracking-[0.42em] text-dim">SEEK</span>
+      <div className="relative flex-1 md:w-16">
+        {/* spine */}
+        <div className="absolute inset-y-0 left-[7px] w-px bg-gradient-to-b from-blood/50 via-line to-blood/40 md:left-[9px]" />
+        {/* scroll-progress thumb — the little red square */}
+        <motion.div
+          className="absolute left-[7px] h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 bg-blood shadow-[0_0_10px_rgba(229,9,20,0.85)] md:left-[9px]"
+          style={{ top: thumbTop }}
+        />
+        {groups.map((g, i) => {
+          const frac = fracs[i];
+          const size = 5 + (g.items.length / max) * 5;
+          const off = hidden.has(g.year);
+          const active = activeYearNow === g.year;
+          const dot = active ? size + 4 : size;
+          return (
+            <button
+              key={g.year}
+              onClick={() => jump(g.year)}
+              title={`${g.year} — ${g.items.length} titles`}
+              aria-label={`Jump to ${g.year}`}
+              className="group absolute left-0 flex -translate-y-1/2 cursor-pointer items-center gap-3"
+              style={{ top: `${frac * 100}%` }}
+            >
+              <span className="grid w-[15px] shrink-0 place-items-center md:w-[19px]">
+                <span
+                  className={`block rounded-full transition-all duration-300 ${
+                    off
+                      ? 'bg-line'
+                      : active
+                        ? 'bg-ember shadow-[0_0_12px_rgba(255,43,56,0.95)]'
+                        : 'bg-dim group-hover:bg-blood'
+                  }`}
+                  style={{ width: dot, height: dot }}
+                />
+              </span>
+              <span
+                className={`hidden whitespace-nowrap font-tele text-[10px] tracking-[0.22em] transition-colors duration-200 md:block ${
+                  active ? 'text-bone' : off ? 'text-dim/60' : 'text-dim group-hover:text-fog'
+                }`}
+              >
+                {g.year}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }
 

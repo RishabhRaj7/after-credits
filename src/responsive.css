@@ -155,7 +155,7 @@
   .detail-panel .grid { grid-template-columns: 1fr; gap: 12px; }
   .detail-panel .grid svg { flex-shrink: 0; }
   .import-panel { max-height: calc(100dvh - 32px); min-width: 0; }
-  .import-panel > div:first-child, .import-panel > div:nth-child(2), .import-panel > div:last-child { flex-shrink: 0; }
+  .import-panel > div:first-child, .import-panel > div:nth-child(2), .import-panel > div:last-child:not(.editor-panel) { flex-shrink: 0; }
   .import-panel > div:first-child { padding: 8px 16px; }
   .import-panel > div:first-child button { width: 44px; height: 44px; display: grid; place-items: center; }
   .import-panel > div:last-child:not(.editor-panel) { flex-wrap: wrap; padding: 12px 16px; }
