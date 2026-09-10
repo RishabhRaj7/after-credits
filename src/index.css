@@ -149,3 +149,52 @@ body {
     ),
     radial-gradient(120% 120% at 100% 100%, rgba(0, 0, 0, 0.55), transparent 60%);
 }
+
+/* slow breathing for the ghost poster wall */
+@keyframes wall-breathe {
+  0%,
+  100% {
+    transform: scale(1) rotate(-4deg);
+  }
+  50% {
+    transform: scale(1.07) rotate(-3.2deg);
+  }
+}
+.wall-breathe {
+  animation: wall-breathe 26s ease-in-out infinite;
+}
+
+/* ── top-N range slider, styled to the projection-room chrome ── */
+input[type="range"].genre-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-blood), var(--color-line));
+  outline: none;
+  cursor: ew-resize;
+}
+input[type="range"].genre-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--color-ember);
+  border: 2px solid var(--color-ink);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.8);
+  transform: rotate(45deg);
+  cursor: ew-resize;
+  transition: transform 0.15s ease;
+}
+input[type="range"].genre-range::-webkit-slider-thumb:hover {
+  transform: rotate(45deg) scale(1.2);
+}
+input[type="range"].genre-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 0;
+  background: var(--color-ember);
+  border: 2px solid var(--color-ink);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.8);
+  transform: rotate(45deg);
+  cursor: ew-resize;
+}

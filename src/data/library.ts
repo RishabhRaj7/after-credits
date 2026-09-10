@@ -43,6 +43,11 @@ export interface DecadeStat {
   years: number[];
 }
 
+export interface GenreCount {
+  name: string;
+  count: number;
+}
+
 /* ── the library ──────────────────────────────────────────────────────────
    `data/baked-library.json` is the committed source of truth — produced by
    `node scripts/bake.mjs` from your CSV (posters downloaded alongside into
@@ -253,6 +258,17 @@ export function statsFor(items: Entry[]): LibraryStats {
     shows: items.filter((e) => e.type === 'show').length,
     entries: items.length,
   };
+}
+
+/* genre aggregation for the radial chart — counts titles, not appearances */
+export function genreCounts(entries: Entry[]): GenreCount[] {
+  const map = new Map<string, number>();
+  entries.forEach((e) =>
+    new Set(e.genres ?? []).forEach((g) => map.set(g, (map.get(g) ?? 0) + 1)),
+  );
+  return [...map.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 /* ── original-header bindings ──────────────────────────────────────────── */

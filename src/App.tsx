@@ -17,7 +17,7 @@ import Logo from './components/Logo';
 import { TopBar, VIEW_META, type ViewId } from './components/Controls';
 import ClusterBurst from './views/ClusterBurst';
 import Reel from './views/Reel';
-import { LIBRARY, sortedEntries, statsFor, type Entry, type Order, type TypeFilter } from './data/library';
+import { LIBRARY, sortedEntries, statsFor, type Entry, type Order, type TypeFilter, genreCounts } from './data/library';
 import {
   clearStoredLibrary,
   deleteServerLibrary,
@@ -67,6 +67,7 @@ export default function App() {
 
   const items = useMemo(() => sortedEntries(library, order), [library, order]);
   const stats = useMemo(() => statsFor(library), [library]);
+  const genres = useMemo(() => genreCounts(LIBRARY), []);
   const viewsRef = useRef<HTMLDivElement>(null);
   const isStored = storeMode !== 'sample';
 
@@ -166,7 +167,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Hero order={order} view={view} onOrder={onOrder} onSwitch={onSwitch} entries={library} stats={stats} />
+      <Hero order={order} view={view} onOrder={onOrder} onSwitch={onSwitch} entries={library} stats={stats} genres={genres} />
 
       {/* the projection itself — keyed so order flips and view swaps reflow
           through a quick editorial blur instead of a hard reload */}
