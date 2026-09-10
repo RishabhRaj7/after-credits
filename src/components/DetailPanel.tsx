@@ -1,139 +1,101 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Film, Tv, Star, Clock, CalendarPlus, CalendarDays, Gauge } from 'lucide-react';
-import { PosterArt } from './Poster';
-import { factLine, fmtDate, fmtDur, type Entry } from '../data/library';
+import { X, Heart, Film, Tv, Calendar, Clock } from 'lucide-react';
+import { Poster } from './Poster';
+import { factLine, fmtDate, fmtDur, watchMinutes, type Entry, type Order } from '../data/library';
 
-export default function DetailPanel({ entry, onClose }: { entry: Entry | null; onClose: () => void }) {
+export default function DetailPanel({
+  entry,
+  order,
+  onClose,
+}: {
+  entry: Entry | null;
+  order: Order;
+  onClose: () => void;
+}) {
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   return (
     <AnimatePresence>
       {entry && (
-        <>
+        <motion.div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4 sm:p-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
           <motion.div
-            key="backdrop"
-            className="fixed inset-0 z-[92] bg-black/70 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.aside
-            key="panel"
-            className="fixed inset-x-0 bottom-0 z-[93] max-h-[84vh] overflow-y-auto border-t border-line bg-coal md:inset-x-auto md:bottom-0 md:right-0 md:top-0 md:h-full md:max-h-none md:w-[440px] md:border-l md:border-t-0"
-            initial={{ y: '60%', x: 0, opacity: 0 }}
-            animate={{ y: 0, x: 0, opacity: 1 }}
-            exit={{ y: '60%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-            role="dialog"
-            aria-label={entry.title}
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 28, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="relative w-full max-w-2xl overflow-hidden border border-line bg-coal shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)]"
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-coal/95 px-5 py-3 backdrop-blur">
-              <span className="font-tele text-[10px] tracking-[0.34em] text-dim">TITLE CARD</span>
-              <button
-                onClick={onClose}
-                className="flex items-center gap-1.5 font-tele text-[10px] tracking-[0.2em] text-fog hover:text-bone"
-              >
-                CLOSE <X size={14} />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="flex gap-5">
-                <div className="w-36 flex-none overflow-hidden rounded-sm border border-line shadow-[0_16px_40px_rgba(0,0,0,0.6)]" style={{ aspectRatio: '2/3' }}>
-                  <PosterArt entry={entry} eager />
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-blood" />
+            <button
+              onClick={onClose}
+              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center border border-line bg-ink/80 text-fog transition-colors hover:border-blood hover:text-bone"
+              aria-label="Close"
+            >
+              <X size={14} />
+            </button>
+            <div className="flex flex-col sm:flex-row">
+              <div className="relative w-40 shrink-0 sm:w-52">
+                <Poster entry={entry} className="aspect-[2/3] w-full" />
+              </div>
+              <div className="flex-1 p-6 sm:p-7">
+                <div className="font-tele text-[10px] tracking-[0.25em] text-blood">
+                  {entry.type === 'movie' ? 'FEATURE' : 'SERIES'}
+                  {entry.favorite && <span className="ml-3 inline-flex items-center gap-1 text-bone">· FAVORITE <Heart size={9} className="fill-blood text-blood" /></span>}
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-tele text-[9.5px] tracking-[0.22em] text-ember">
-                    {entry.type === 'movie' ? <Film size={11} /> : <Tv size={11} />}
-                    {entry.type === 'movie' ? 'FILM' : 'SERIES'}
-                    {entry.favorite && <Star size={11} className="fill-blood text-blood" />}
+                <h2 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-bone">
+                  {entry.title}
+                </h2>
+                <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 font-tele text-[11px]">
+                  <div className="flex items-center gap-2 text-fog">
+                    {entry.type === 'movie' ? <Film size={12} className="text-dim" /> : <Tv size={12} className="text-dim" />}
+                    {factLine(entry)}
                   </div>
-                  <h3 className="mt-1.5 font-display text-3xl uppercase leading-[0.95] text-bone">
-                    {entry.title}
-                  </h3>
-                  {entry.originalTitle && entry.originalTitle !== entry.title && (
-                    <div className="mt-1 text-xs italic text-fog">{entry.originalTitle}</div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {entry.genres.slice(0, 4).map((g) => (
-                      <span key={g} className="border border-line px-1.5 py-0.5 font-tele text-[9px] tracking-[0.14em] text-fog">
+                  <div className="flex items-center gap-2 text-fog">
+                    <Clock size={12} className="text-dim" />
+                    {watchMinutes(entry) ? `≈ ${fmtDur(watchMinutes(entry))}` : '—'}
+                  </div>
+                  <div className="flex items-center gap-2 text-fog">
+                    <Calendar size={12} className="text-dim" />
+                    {order === 'watch' ? 'LOGGED' : 'PREMIERE'} {fmtDate(order === 'watch' ? entry.addedAt : entry.releaseDate ?? entry.addedAt)}
+                  </div>
+                  <div className="flex items-center gap-2 text-fog">
+                    <Calendar size={12} className="text-dim" />
+                    {order === 'watch' ? 'PREMIERE' : 'LOGGED'} {fmtDate(order === 'watch' ? entry.releaseDate ?? entry.addedAt : entry.addedAt)}
+                  </div>
+                </div>
+                {entry.genres && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {entry.genres.map((g) => (
+                      <span key={g} className="border border-line px-2 py-0.5 font-tele text-[9px] tracking-[0.18em] text-dim">
                         {g.toUpperCase()}
                       </span>
                     ))}
                   </div>
+                )}
+                {entry.overview && (
+                  <p className="mt-4 text-sm leading-relaxed text-fog">{entry.overview}</p>
+                )}
+                <div className="mt-5 border-t border-line pt-3 font-tele text-[9px] tracking-[0.3em] text-dim">
+                  {entry.year ?? '————'} · AFTER CREDITS ARCHIVE
                 </div>
               </div>
-
-              <div className="mt-6 space-y-2.5 border-t border-line pt-5 font-tele text-[11px] tracking-[0.08em]">
-                <Row icon={CalendarPlus} k="LOGGED" v={fmtDate(entry.addedAt)} />
-                <Row icon={CalendarDays} k="RELEASED" v={entry.releaseDate ? fmtDate(entry.releaseDate) : `${entry.year ?? '––––'}`} note={entry.releaseDateEstimated ? 'YEAR ONLY (OFFLINE)' : undefined} />
-                <Row icon={Clock} k={entry.type === 'movie' ? 'RUNTIME' : 'EPISODES'} v={factLine(entry)} />
-                {entry.watchMinutes != null && (
-                  <Row icon={Gauge} k="WATCH COST" v={`≈ ${fmtDur(entry.watchMinutes)}${entry.watchEstimated ? ' (EST)' : ''}`} accent />
-                )}
-                <Row k="STATUS" v={entry.status.replace(/_/g, ' ').toUpperCase()} />
-                {(entry.imdbId || entry.tmdbId) && (
-                  <Row k="IDS" v={[
-                    entry.tmdbId ? `TMDB ${entry.tmdbId}` : null,
-                    entry.imdbId ?? null,
-                  ].filter(Boolean).join(' · ')} dim />
-                )}
-              </div>
-
-              {entry.voteAverage != null && (
-                <div className="mt-5">
-                  <div className="flex items-center justify-between font-tele text-[9.5px] tracking-[0.2em] text-dim">
-                    <span>CROWD SCORE</span>
-                    <span className="text-bone">{entry.voteAverage.toFixed(1)}</span>
-                  </div>
-                  <div className="mt-1.5 h-1 bg-smoke">
-                    <div className="h-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.6)]" style={{ width: `${entry.voteAverage * 10}%` }} />
-                  </div>
-                </div>
-              )}
-
-              <p className="mt-6 text-sm leading-relaxed text-fog">
-                {entry.overview ?? (
-                  <span className="font-tele text-[10px] tracking-[0.06em] text-dim">
-                    SYNOPSIS ARRIVES WITH TMDB ENRICHMENT — RUN{' '}
-                    <span className="text-fog">TMDB_API_KEY=… node scripts/enrich.mjs</span>{' '}
-                    AND REBUILD.
-                  </span>
-                )}
-              </p>
-
-              {entry.type === 'show' && (
-                <p className="mt-4 border-t border-line pt-4 font-tele text-[9px] leading-relaxed tracking-[0.08em] text-dim">
-                  {entry.episodesEstimated
-                    ? 'EPISODE COUNT IS AN OFFLINE ESTIMATE — TMDB REPLACES IT WITH REAL NUMBERS.'
-                    : 'SERIES TIME ≈ EPISODES × AVG EP LENGTH; ONGOING SHOWS UNDERCOUNT.'}
-                </p>
-              )}
             </div>
-          </motion.aside>
-        </>
+          </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function Row({ icon: Icon, k, v, note, accent, dim }: {
-  icon?: typeof Clock; k: string; v: string; note?: string; accent?: boolean; dim?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-4">
-      <span className="flex items-center gap-2 text-[9.5px] tracking-[0.24em] text-dim">
-        {Icon && <Icon size={11} />}
-        {k}
-      </span>
-      <span className={`text-right ${accent ? 'text-ember' : dim ? 'text-dim' : 'text-bone'}`}>
-        {v}
-        {note && <span className="ml-2 text-[8.5px] text-dim">{note}</span>}
-      </span>
-    </div>
   );
 }

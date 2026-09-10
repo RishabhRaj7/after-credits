@@ -3,7 +3,7 @@ import { ChevronDown, Info } from 'lucide-react';
 import CountUp from './CountUp';
 import { PosterArt } from './Poster';
 import { OrderToggle, ViewSwitcher, type ViewId } from './Controls';
-import { ENTRIES, META, TOTAL_DHM, SPAN, type Entry, type Order } from '../data/library';
+import { ENTRIES, META, TOTAL_DHM, SPAN, type Order } from '../data/library';
 
 interface Props {
   order: Order;
@@ -12,15 +12,16 @@ interface Props {
   onSwitch: (v: ViewId) => void;
 }
 
-/* a sparse, evenly-spaced slice of the library for the drifting wall */
-const WALL: Entry[] = (() => {
-  const stride = Math.max(6, Math.floor(ENTRIES.length / 34));
-  const picks: Entry[] = [];
-  for (let i = 0; i < ENTRIES.length && picks.length < 34; i += stride) picks.push(ENTRIES[i]);
+/* a sparse, evenly-spaced slice of the library for the drifting wall
+   (cycles when the library is smaller than 34 so both walls stay full) */
+const WALL: typeof ENTRIES = (() => {
+  const stride = Math.max(1, Math.floor(ENTRIES.length / 34));
+  const picks: typeof ENTRIES = [];
+  for (let i = 0; picks.length < 34; i += stride) picks.push(ENTRIES[i % ENTRIES.length]);
   return picks;
 })();
 
-function WallRow({ items, reverse = false }: { items: Entry[]; reverse?: boolean }) {
+function WallRow({ items, reverse = false }: { items: typeof ENTRIES; reverse?: boolean }) {
   const doubled = [...items, ...items];
   return (
     <div
@@ -51,7 +52,7 @@ const rise = {
 export default function Hero({ order, view, onOrder, onSwitch }: Props) {
   const years = `${SPAN.from.getUTCFullYear()} ————— ${SPAN.to.getUTCFullYear()}`;
   return (
-    <section className="relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
+    <section className="chrome-orig relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
       {/* letterbox bar */}
       <div className="relative z-20 flex items-center justify-between border-b border-line/60 bg-black px-4 py-2.5 font-tele text-[10px] tracking-[0.28em] text-dim sm:px-8">
         <span className="text-fog">A PERSONAL SCREENING HISTORY</span>
@@ -122,8 +123,7 @@ export default function Hero({ order, view, onOrder, onSwitch }: Props) {
           <Info size={12} className="mt-px shrink-0" />
           <span>
             APPROXIMATION: SERIES TIME = EPISODES × AVERAGE EPISODE LENGTH; ONGOING SHOWS
-            UNDERCOUNT UNTIL ALL EPISODES ARE REFLECTED.{' '}
-            {META.source.startsWith('tmdb') ? 'TMDB-ENRICHED DATA.' : 'OFFLINE-SEEDED — RUN scripts/enrich.mjs WITH A TMDB KEY FOR POSTERS + EXACT RUNTIMES.'}
+            UNDERCOUNT UNTIL ALL EPISODES ARE REFLECTED.
           </span>
         </motion.div>
 

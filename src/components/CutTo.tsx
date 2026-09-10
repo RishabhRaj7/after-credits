@@ -17,7 +17,7 @@ export default function CutTo({ cut }: { cut: CutSpec | null }) {
   return (
     <AnimatePresence>
       {cut && (
-        <motion.div key="cut" className="pointer-events-none fixed inset-0 z-[85]">
+        <motion.div key="cut" className="chrome-orig pointer-events-none fixed inset-0 z-[85]">
           {/* black leader */}
           <motion.div
             className="absolute inset-0 bg-black"

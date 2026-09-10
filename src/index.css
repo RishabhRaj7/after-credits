@@ -1,21 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0a0a0b;
-  --color-coal: #101013;
+  --color-ink: #0a0a0c;
+  --color-coal: #121215;
+  --color-panel: #17171b;
+  --color-bone: #ece7df;
+  --color-fog: #a9a49d;
+  --color-dim: #6d6a65;
+  --color-line: #26262b;
   --color-smoke: #16161a;
-  --color-ash: #232329;
-  --color-line: #2a2a30;
-  --color-bone: #efece5;
-  --color-fog: #8f939c;
-  --color-dim: #5b5f68;
   --color-blood: #e50914;
-  --color-ember: #ff2b35;
-  --color-candle: #f5d90a;
+  --color-ember: #ff2b38;
 
-  --font-display: "Anton", "Arial Narrow", "Impact", sans-serif;
-  --font-body: "Archivo", system-ui, -apple-system, sans-serif;
-  --font-tele: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Bebas Neue", "Archivo", sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
+  --font-tele: "IBM Plex Mono", monospace;
 }
 
 html {
@@ -24,118 +23,122 @@ html {
 }
 
 body {
-  @apply bg-ink text-bone font-body antialiased;
-  overflow-x: clip;
+  font-family: var(--font-body);
+  color: var(--color-bone);
+  background: var(--color-ink);
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: var(--color-blood);
+  background: rgba(229, 9, 20, 0.85);
   color: #fff;
 }
 
-::-webkit-scrollbar { width: 10px; background: #0a0a0b; }
-::-webkit-scrollbar-thumb { background: #232329; border-radius: 5px; border: 2px solid #0a0a0b; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-blood); }
+/* thin dark scrollbar to keep the projection-room mood */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0c;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 6px;
+  border: 2px solid #0a0a0c;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #e50914;
+}
 
-/* ── cinema chrome ─────────────────────────────────────────────────────── */
+.font-tele {
+  font-family: var(--font-tele);
+}
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* hot spine segment pulses faintly */
+@keyframes spinePulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+.spine-hot {
+  animation: spinePulse 2.4s ease-in-out infinite;
+}
+
+/* film grain drift */
+@keyframes grainShift {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-2%, 1%);
+  }
+  50% {
+    transform: translate(1%, -2%);
+  }
+  75% {
+    transform: translate(-1%, 2%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+.grain-layer {
+  animation: grainShift 0.9s steps(4) infinite;
+}
+
+/* flicker for the NOW playhead label */
+@keyframes softFlicker {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.flicker {
+  animation: softFlicker 1.8s ease-in-out infinite;
+}
+
+/* ── original header chrome (scoped so the views keep their own faces) ── */
+.chrome-orig {
+  --font-display: "Anton", "Arial Narrow", Impact, sans-serif;
+  --font-tele: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+}
 
 .text-outline {
   color: transparent;
-  -webkit-text-stroke: 1.5px rgba(239, 236, 229, 0.28);
-}
-.text-outline-red {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgba(229, 9, 20, 0.65);
+  -webkit-text-stroke: 1.5px rgba(236, 231, 223, 0.28);
 }
 
-.grain-overlay {
-  position: fixed;
-  inset: -100px;
-  z-index: 95;
-  pointer-events: none;
-  opacity: 0.055;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: grain-shift 0.7s steps(1) infinite;
-}
-@keyframes grain-shift {
-  0% { transform: translate(0, 0); }
-  20% { transform: translate(-28px, 14px); }
-  40% { transform: translate(16px, -30px); }
-  60% { transform: translate(-22px, -8px); }
-  80% { transform: translate(24px, 22px); }
-  100% { transform: translate(0, 0); }
-}
-
-.vignette {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  pointer-events: none;
-  background: radial-gradient(ellipse 92% 78% at 50% 42%, transparent 58%, rgba(0, 0, 0, 0.5) 100%);
-}
-
-.scanlines { position: relative; }
-.scanlines::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(255, 255, 255, 0.028) 0 1px,
-    transparent 1px 3px
-  );
-  mix-blend-mode: overlay;
-}
-
-/* slow drifting poster wall in the hero */
-@keyframes wall-drift-l { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@keyframes wall-drift-r { from { transform: translateX(-50%); } to { transform: translateX(0); } }
-.wall-row-l { animation: wall-drift-l 240s linear infinite; }
-.wall-row-r { animation: wall-drift-r 240s linear infinite; }
-
-/* recording dot + spine pulse */
-@keyframes rec-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0.25; } }
-.rec-dot { animation: rec-blink 1.6s steps(1) infinite; }
-
-@keyframes spine-pulse {
-  0%, 100% { box-shadow: 0 0 12px rgba(229, 9, 20, 0.45), 0 0 32px rgba(229, 9, 20, 0.18); }
-  50% { box-shadow: 0 0 22px rgba(229, 9, 20, 0.8), 0 0 60px rgba(229, 9, 20, 0.35); }
-}
-.spine-hot { animation: spine-pulse 2.4s ease-in-out infinite; }
-
-/* ticket-stub perforation between reel blocks */
-.perf-l {
-  background-image: radial-gradient(circle at 0 50%, transparent 0, transparent 0);
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(239, 236, 229, 0.16) 0 6px,
-    transparent 6px 14px
-  );
-  width: 1px;
-}
-
-.no-scrollbar { scrollbar-width: none; }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-
-/* content-visibility helpers — native virtualization for long reels */
-.cv-block { content-visibility: auto; contain-intrinsic-size: auto 96px; }
-.cv-year { content-visibility: auto; contain-intrinsic-size: auto 1400px; }
-
-/* hero number slab edge */
 .slab-line {
   background: linear-gradient(90deg, transparent, rgba(229, 9, 20, 0.7), transparent);
   height: 1px;
 }
 
-@keyframes cue-flash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
-.cue-flash { animation: cue-flash 1.4s ease-out infinite; }
+@keyframes rec-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.25; }
+}
+.rec-dot { animation: rec-blink 1.6s steps(1) infinite; }
 
-@media (prefers-reduced-motion: reduce) {
-  .grain-overlay,
-  .rec-dot,
-  .spine-hot,
-  .cue-flash { animation: none; }
-  html { scroll-behavior: auto; }
+/* slow drifting poster wall in the hero */
+@keyframes wall-drift-l { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes wall-drift-r { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+
+/* typographic fallback poster texture */
+.poster-seed {
+  background-image: radial-gradient(
+      120% 90% at 20% 0%,
+      rgba(255, 255, 255, 0.07),
+      transparent 55%
+    ),
+    radial-gradient(120% 120% at 100% 100%, rgba(0, 0, 0, 0.55), transparent 60%);
 }

@@ -140,7 +140,7 @@ export function TopBar({ order, view, onOrder, onSwitch, progress }: BarProps) {
       animate={{ y: 0 }}
       exit={{ y: -72 }}
       transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-      className="fixed inset-x-0 top-0 z-[70] border-b border-line bg-ink/85 backdrop-blur-md"
+      className="chrome-orig fixed inset-x-0 top-0 z-[70] border-b border-line bg-ink/85 backdrop-blur-md"
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
         <div className="flex items-center gap-3">

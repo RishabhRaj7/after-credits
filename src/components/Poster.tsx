@@ -1,105 +1,107 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Film, Tv } from 'lucide-react';
-import {
-  paletteOf, serialOf, posterUrl, factLine, type Entry,
-} from '../data/library';
+import { Heart } from 'lucide-react';
+import type { Entry } from '../data/library';
 
-/**
- * Poster system. Every entry renders something poster-like:
- *   • TMDB poster if the library was enriched with a key,
- *   • otherwise a deterministic typographic title card (each title hashes to
- *     one of eight art-directed dark-cinema palettes).
- * Both treatments share frame, ratio and hover physics.
- */
+/* deterministic deep palette for typographic fallback cards */
+const SEEDS: Array<[string, string]> = [
+  ['#171114', '#e8ddd0'],
+  ['#101418', '#dfe5ea'],
+  ['#16140f', '#ece4d2'],
+  ['#0f1713', '#dcebe0'],
+  ['#170f16', '#e9dcea'],
+  ['#131313', '#e6e6e6'],
+];
 
-export function FallbackCard({ entry }: { entry: Entry }) {
-  const p = paletteOf(entry.title + entry.id);
-  const long = entry.title.length > 24;
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function SeedCard({ entry }: { entry: Entry }) {
+  const [bg, fg] = SEEDS[hash(entry.title) % SEEDS.length];
+  const words = entry.title.toUpperCase().split(' ');
   return (
     <div
-      className="relative flex h-full w-full flex-col justify-between overflow-hidden"
-      style={{
-        containerType: 'inline-size',
-        background: `linear-gradient(158deg, ${p.edge} 0%, ${p.bg} 46%, ${p.bg} 100%)`,
-        color: p.ink,
-      }}
+      className="poster-seed absolute inset-0 flex flex-col justify-between p-[9%]"
+      style={{ background: bg, color: fg }}
     >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: `radial-gradient(circle at 30% 18%, ${p.glow}, transparent 60%)` }}
-      />
-      <div className="scanlines pointer-events-none absolute inset-0" />
-      <div className="relative flex items-center justify-between px-[9%] pt-[8%] font-tele uppercase" style={{ fontSize: '8.2cqw', letterSpacing: '0.14em', opacity: 0.75 }}>
-        <span className="flex items-center gap-[1.2cqw]">
-          {entry.type === 'movie' ? <Film size={'9cqw' as never} strokeWidth={2.4} className="!h-[9cqw] !w-[9cqw]" /> : <Tv className="!h-[9cqw] !w-[9cqw]" strokeWidth={2.4} />}
-          {entry.type === 'movie' ? 'FILM' : 'SERIES'}
-        </span>
-        <span>{entry.year ?? '––––'}</span>
+      <div className="font-tele text-[7px] leading-none tracking-[0.22em] opacity-60">
+        {entry.type === 'movie' ? 'A FILM' : 'A SERIES'}
+        {entry.year ? ` · ${entry.year}` : ''}
       </div>
-      <div className="relative px-[9%]">
-        <div
-          className="font-display uppercase leading-[0.92] tracking-[0.01em]"
-          style={{ fontSize: long ? '11cqw' : '15cqw' }}
-        >
-          {entry.title}
+      <div>
+        <div className="mb-1.5 h-px w-5 bg-blood" />
+        <div className="font-display text-[clamp(13px,1.6vw,19px)] uppercase leading-[0.92] tracking-wide">
+          {words.join(' ')}
         </div>
       </div>
-      <div className="relative flex items-end justify-between px-[9%] pb-[8%] font-tele uppercase" style={{ fontSize: '7.4cqw', letterSpacing: '0.1em', opacity: 0.7 }}>
-        <span>{factLine(entry)}</span>
-        <span>№{serialOf(entry.id)}</span>
-      </div>
-      {entry.favorite && (
-        <div className="absolute right-[8%] top-[26%]">
-          <Star className="!h-[10cqw] !w-[10cqw] fill-blood text-blood" strokeWidth={0} style={{ filter: 'drop-shadow(0 0 6px rgba(229,9,20,.8))' }} />
-        </div>
-      )}
-      <div className="pointer-events-none absolute inset-0 border border-white/10" />
+      <div className="font-tele text-[6.5px] tracking-[0.3em] opacity-40">AFTER CREDITS</div>
     </div>
   );
 }
 
-export function PosterArt({ entry, eager = false }: { entry: Entry; eager?: boolean }) {
-  const src = posterUrl(entry.posterPath);
-  const [errored, setErrored] = useState(false);
-  if (!src || errored) return <FallbackCard entry={entry} />;
+/* original header refers to the bare art layer by this name */
+export const PosterArt = Poster;
+
+export function Poster({ entry, className = '' }: { entry: Entry; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  const showImg = !!entry.poster && !broken;
   return (
-    <img
-      src={src}
-      alt={entry.title}
-      loading={eager ? 'eager' : 'lazy'}
-      decoding="async"
-      draggable={false}
-      onError={() => setErrored(true)}
-      className="h-full w-full select-none object-cover"
-    />
+    <div className={`relative overflow-hidden bg-coal ${className}`}>
+      {showImg ? (
+        <img
+          src={`https://image.tmdb.org/t/p/w500/${entry.poster}.jpg`}
+          alt={entry.title}
+          loading="lazy"
+          draggable={false}
+          onError={() => setBroken(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <SeedCard entry={entry} />
+      )}
+      {showImg && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
+      )}
+      {entry.favorite && (
+        <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 backdrop-blur-sm">
+          <Heart size={10} className="fill-blood text-blood" />
+        </div>
+      )}
+    </div>
   );
 }
 
-interface ZoomProps {
+/* poster that springs up ~2× on hover and yields its neighbors */
+export function ZoomPoster({
+  entry,
+  className = '',
+  posterClass = '',
+  onClick,
+  hoverScale = 1.9,
+}: {
   entry: Entry;
   className?: string;
-  eager?: boolean;
-  zoom?: number;
-  onSelect?: (e: Entry) => void;
-}
-
-/**
- * The shared poster interaction, per spec: ~2× spring scale, lifted shadow,
- * z-index above neighbours, click opens the detail panel.
- */
-export function ZoomPoster({ entry, className = '', eager = false, zoom = 2.02, onSelect }: ZoomProps) {
+  posterClass?: string;
+  onClick?: (e: Entry) => void;
+  hoverScale?: number;
+}) {
   return (
-    <motion.div
-      whileHover={{ scale: zoom, zIndex: 60 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 21 }}
-      className={`relative aspect-[2/3] cursor-pointer overflow-hidden rounded-[3px] bg-coal shadow-[0_2px_10px_rgba(0,0,0,0.5)] hover:z-[60] hover:shadow-[0_22px_44px_rgba(0,0,0,0.72)] ${className}`}
-      onClick={(e) => { e.stopPropagation(); onSelect?.(entry); }}
-      role="button"
-      aria-label={entry.title}
-      title={entry.title}
+    <motion.button
+      type="button"
+      onClick={() => onClick?.(entry)}
+      whileHover={{ scale: hoverScale, zIndex: 60 }}
+      whileTap={{ scale: hoverScale * 0.96 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+      className={`relative block cursor-pointer outline-none ${className}`}
+      style={{ zIndex: 2 }}
     >
-      <PosterArt entry={entry} eager={eager} />
-    </motion.div>
+      <Poster
+        entry={entry}
+        className={`shadow-[0_18px_40px_-12px_rgba(0,0,0,0.85)] ring-1 ring-white/10 ${posterClass}`}
+      />
+    </motion.button>
   );
 }
