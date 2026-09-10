@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   motion,
   useInView,
@@ -6,16 +6,22 @@ import {
   useScroll,
   useSpring,
 } from 'framer-motion';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { ZoomPoster } from '../components/Poster';
+import { ChipsBar } from './Reel';
 import {
   clusterize,
+  decadeStats,
   fmtDur,
   fmtMonth,
+  groupByYear,
   headlineFor,
   intensityFor,
+  sortKey,
   type Cluster,
   type Entry,
   type Order,
+  type TypeFilter,
 } from '../data/library';
 
 const VB_W = 1000;
@@ -194,15 +200,67 @@ export default function ClusterBurst({
   items,
   order,
   onSelect,
+  hidden,
+  onHidden,
+  dir,
+  onDir,
+  typeFilter,
+  onTypeFilter,
 }: {
   items: Entry[];
   order: Order;
   onSelect: (e: Entry) => void;
+  hidden: Set<number>;
+  onHidden: (fn: (prev: Set<number>) => Set<number>) => void;
+  dir: 'asc' | 'desc';
+  onDir: (d: 'asc' | 'desc') => void;
+  typeFilter: TypeFilter;
+  onTypeFilter: (t: TypeFilter) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
-  const clusters = useMemo(() => clusterize(items, order), [items, order]);
-  const geo = useMemo(() => buildGeo(clusters), [clusters]);
+
+  /* year/decade filter + chronological direction are shared with The Reel
+     (lifted into App) so selections persist across view switches */
+  const groups = useMemo(() => groupByYear(items, order), [items, order]);
+  const decades = useMemo(() => decadeStats(groups), [groups]);
+
+  const filtered = useMemo(
+    () => items.filter((e) => !hidden.has(new Date(sortKey(e, order)).getFullYear())),
+    [items, hidden, order],
+  );
+  const clusters = useMemo(() => clusterize(filtered, order), [filtered, order]);
+  const ordered = useMemo(
+    () => (dir === 'asc' ? clusters : [...clusters].reverse()),
+    [clusters, dir],
+  );
+  const geo = useMemo(() => buildGeo(ordered), [ordered]);
+  const nights = useMemo(() => new Set(filtered.map((i) => i.addedAt)).size, [filtered]);
+
+  const toggleYear = useCallback(
+    (y: number) => {
+      onHidden((h) => {
+        const n = new Set(h);
+        if (n.has(y)) n.delete(y);
+        else n.add(y);
+        return n;
+      });
+    },
+    [onHidden],
+  );
+
+  const toggleDecade = useCallback(
+    (d: number) => {
+      onHidden((h) => {
+        const n = new Set(h);
+        const ys = groups.filter((g) => Math.floor(g.year / 10) * 10 === d).map((g) => g.year);
+        const allIn = ys.every((y) => !n.has(y));
+        ys.forEach((y) => (allIn ? n.add(y) : n.delete(y)));
+        return n;
+      });
+    },
+    [groups, onHidden],
+  );
   const pw = Math.max(92, Math.min(150, width * 0.13));
 
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.6'] });
@@ -227,28 +285,72 @@ export default function ClusterBurst({
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-5">
+    <div>
       {/* view header */}
+      <div className="mx-auto max-w-6xl px-5">
       <div className="flex flex-wrap items-end justify-between gap-6 pb-10 pt-16">
-        <div>
-          <div className="font-tele text-[10px] tracking-[0.3em] text-blood">VIEW 01</div>
-          <h2 className="mt-2 font-display text-6xl tracking-wide text-bone sm:text-7xl">
-            Cluster <span className="text-dim">&</span> Burst
+        <div className="chrome-orig">
+          <div className="font-tele text-[10px] font-medium tracking-[0.42em] text-blood">VIEW 01</div>
+          <h2 className="mt-2 font-display text-6xl uppercase leading-none tracking-wide text-bone sm:text-7xl">
+            Cluster <span className="text-outline-blood">&</span> Burst
           </h2>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-fog">
-            {items.length} nights, one track. A lone poster means a quiet evening — a knot
-            means a binge. Scroll through it: dense stretches blow open into a fan.
+          <p className="mt-4 max-w-md text-sm leading-relaxed text-fog">
+            {nights} nights, one track. A lone poster means a quiet evening — a knot
+            means a binge. Scroll through it: dense stretches blow open.
           </p>
         </div>
-        <div className="space-y-1.5 pb-2 font-tele text-[9px] tracking-[0.22em] text-dim">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-fog" /> SINGLE — QUIET STRETCH
+        <div className="flex flex-col items-start gap-4 pb-1 sm:items-end">
+          {/* chronological direction */}
+          <div className="chrome-orig flex items-center gap-2.5">
+            <span className="font-tele text-[9px] tracking-[0.3em] text-dim">CHRONO</span>
+            <div className="flex overflow-hidden rounded-full border border-line">
+              <button
+                type="button"
+                onClick={() => onDir('asc')}
+                className={`flex cursor-pointer items-center gap-1.5 px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
+                  dir === 'asc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
+                }`}
+              >
+                <ArrowUp size={10} className={dir === 'asc' ? 'text-blood' : ''} /> OLDEST
+              </button>
+              <button
+                type="button"
+                onClick={() => onDir('desc')}
+                className={`flex cursor-pointer items-center gap-1.5 border-l border-line px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
+                  dir === 'desc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
+                }`}
+              >
+                <ArrowDown size={10} className={dir === 'desc' ? 'text-blood' : ''} /> NEWEST
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.9)]" /> KNOT — BINGE DENSITY
+
+          <div className="space-y-1.5 font-tele text-[9px] tracking-[0.22em] text-dim">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-fog" /> SINGLE — QUIET STRETCH
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.9)]" /> KNOT — BINGE DENSITY
+            </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <ChipsBar
+      groups={groups}
+      decades={decades}
+      hidden={hidden}
+      onToggleYear={toggleYear}
+      onToggleDecade={toggleDecade}
+      onAll={() => onHidden(() => new Set())}
+      typeFilter={typeFilter}
+      onTypeFilter={onTypeFilter}
+      label="TRACK FILTER"
+      hint="TRACK SHORTENS LIVE"
+    />
+
+    <div className="mx-auto max-w-6xl px-5">
 
       {/* the track */}
       <div ref={ref} className="relative" style={{ height: geo.H }}>
@@ -305,10 +407,11 @@ export default function ClusterBurst({
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
           <div className="font-display text-5xl tracking-[0.2em] text-dim">FIN</div>
           <div className="mt-2 font-tele text-[9px] tracking-[0.3em] text-dim">
-            {items.length} TITLES · TO BE CONTINUED
+            {filtered.length} TITLES · TO BE CONTINUED
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

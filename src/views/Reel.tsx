@@ -1,16 +1,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useInView, useScroll, useTransform, type MotionValue } from 'framer-motion';
-import { Film, Tv, Heart } from 'lucide-react';
-import { ZoomPoster } from '../components/Poster';
+import { ArrowDown, ArrowUp, Film, Heart, Tv } from 'lucide-react';
+import { posterSrc } from '../components/Poster';
 import {
   decadeStats,
-  fmtDate,
   fmtDur,
   groupByYear,
   watchMinutes,
   type DecadeStat,
   type Entry,
   type Order,
+  type TypeFilter,
   type YearGroup,
 } from '../data/library';
 
@@ -63,76 +63,183 @@ function YearPlate({ year, titles, hours }: { year: number; titles: number; hour
 }
 
 /* ── one title block ───────────────────────────────────────────────────── */
+
+/* deterministic wine/maroon palettes for typographic reel cards */
+const CARD_SEEDS: Array<[string, string]> = [
+  ['#6d222c', '#170a0e'],
+  ['#7a2733', '#150a10'],
+  ['#5c1c2e', '#130a12'],
+  ['#802a2a', '#1a0c0c'],
+  ['#63203a', '#150a11'],
+  ['#712238', '#180b0d'],
+];
+
+function cardHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+const MO = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function fmtLogged(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return `${MO[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')} · ${d.getFullYear()}`;
+}
+
+/* small poster card: FILM · year on top, title low, runtime + number on the bottom edge */
+function ReelPosterCard({ entry, num }: { entry: Entry; num: string }) {
+  const [broken, setBroken] = useState(false);
+  const showImg = !!entry.poster && !broken;
+  const [c0, c1] = CARD_SEEDS[cardHash(entry.title) % CARD_SEEDS.length];
+  const unit = entry.type === 'movie' ? (entry.runtimeMinutes ?? 0) : (entry.episodeRuntime ?? 0);
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden ring-1 ring-white/15"
+      style={{ background: `linear-gradient(152deg, ${c0} 0%, ${c1} 82%)` }}
+    >
+      {showImg && (
+        <img
+          src={posterSrc(entry.poster!)}
+          alt={entry.title}
+          loading="lazy"
+          draggable={false}
+          onError={() => setBroken(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {showImg && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/70 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/75 to-transparent" />
+        </>
+      )}
+      <div className="absolute inset-0 flex flex-col justify-between p-2 sm:p-2.5">
+        <div className="flex items-center justify-between font-tele text-[7.5px] tracking-[0.16em] text-bone/85">
+          <span className="flex items-center gap-1">
+            {entry.type === 'movie' ? <Film size={9} /> : <Tv size={9} />}
+            {entry.type === 'movie' ? 'FILM' : 'SERIES'}
+          </span>
+          <span>{entry.year ?? '————'}</span>
+        </div>
+        {!showImg && (
+          <div className="line-clamp-3 font-display text-[17px] uppercase leading-[0.88] tracking-wide text-bone sm:text-[19px]">
+            {entry.title}
+          </div>
+        )}
+        <div className="flex items-center justify-between font-tele text-[7.5px] uppercase tracking-[0.14em] text-bone/70">
+          <span>{unit ? fmtDur(unit) : '—'}</span>
+          <span>{num}</span>
+        </div>
+      </div>
+      {entry.favorite && (
+        <div className="absolute right-1.5 top-5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60">
+          <Heart size={8} className="fill-blood text-blood" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReelBlock({
   entry,
-  order,
   index,
   side,
   first,
   onSelect,
 }: {
   entry: Entry;
-  order: Order;
   index: number;
   side: 'l' | 'r';
   first: boolean;
   onSelect: (e: Entry) => void;
 }) {
-  const watch = order === 'watch';
-  const date = watch ? entry.addedAt : (entry.releaseDate ?? entry.addedAt);
-  const mins = watchMinutes(entry);
-
-  const text = (align: 'left' | 'right') => (
-    <div className={align === 'right' ? 'text-right' : 'text-left'}>
-      <div className="flex items-center gap-2 font-tele text-[9px] tracking-[0.26em] text-dim" style={{ justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
-        {entry.type === 'movie' ? <Film size={10} /> : <Tv size={10} />}
-        {entry.type === 'movie' ? 'FILM' : 'SERIES'} <span className="text-line">/</span> {entry.year ?? '————'}
-        {entry.favorite && <Heart size={9} className="fill-blood text-blood" />}
-      </div>
-      <div className="mt-1.5 text-[28px] font-semibold leading-tight tracking-tight text-bone sm:text-4xl">
-        {entry.title}
-      </div>
-      <div className="mt-1 text-sm text-fog">{mins ? fmtDur(mins) : '—'}</div>
-      <div className="mt-2 font-tele text-[9px] tracking-[0.2em] text-dim">
-        {watch ? 'ADDED' : 'PREMIERE'} {fmtDate(date)}
-      </div>
-    </div>
-  );
+  const total = watchMinutes(entry);
+  const unit = entry.type === 'movie' ? (entry.runtimeMinutes ?? 0) : (entry.episodeRuntime ?? 0);
+  const num = `#${String(index + 1).padStart(3, '0')}`;
 
   return (
     <motion.div
-      className={`relative ${first ? 'mt-14' : 'mt-12 md:-mt-12'}`}
+      className={`group relative ${first ? 'mt-12' : 'mt-2'}`}
       initial={{ opacity: 0, y: 26 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-12% 0px' }}
       transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* dashed rule reaching outward */}
+      {/* dashed rule reaching outward from the spine */}
       <div
         className={`pointer-events-none absolute top-1/2 hidden h-px border-t border-dashed border-white/10 md:block ${
-          side === 'l' ? 'left-0 right-1/2 mr-14' : 'left-1/2 right-0 ml-14'
+          side === 'l' ? 'left-0 right-1/2 mr-9' : 'left-1/2 right-0 ml-9'
         }`}
       />
-      {/* connector tick to the spine + dot */}
-      <span className={`absolute top-1/2 hidden h-px w-8 bg-blood/50 md:block ${side === 'l' ? 'right-1/2' : 'left-1/2'}`} />
+      {/* dashed tick bridging the row to the spine */}
+      <span
+        className={`absolute top-1/2 hidden w-7 border-t border-dashed border-blood/50 md:block ${
+          side === 'l' ? 'right-1/2' : 'left-1/2'
+        }`}
+      />
       <span className="absolute left-1/2 top-1/2 z-10 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.85)]" />
-      <span className={`absolute top-1/2 hidden -translate-y-1/2 font-tele text-[8px] tracking-[0.2em] text-dim/70 md:block ${side === 'l' ? 'right-1/2 mr-10' : 'left-1/2 ml-10'}`}>
-        #{String(index + 1).padStart(3, '0')}
-      </span>
 
       <div
-        className={`relative flex items-center gap-4 sm:gap-6 ${
-          side === 'l' ? 'md:w-1/2 md:justify-end md:pr-12' : 'md:ml-auto md:w-1/2 md:justify-start md:pl-12'
+        className={`relative ${
+          side === 'l' ? 'md:mr-auto md:w-[calc(50%-26px)]' : 'md:ml-auto md:w-[calc(50%-26px)]'
         }`}
       >
-        <ZoomPoster
-          entry={entry}
-          onClick={onSelect}
-          hoverScale={1.5}
-          className={`aspect-[2/3] w-24 shrink-0 sm:w-28 ${side === 'l' ? 'md:order-2' : ''}`}
-          posterClass="h-full w-full"
+        {/* hover panel + red edge on the spine-facing side */}
+        <div className="pointer-events-none absolute inset-0 bg-white/[0.035] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <span
+          className={`pointer-events-none absolute bottom-0 top-0 w-[3px] origin-top scale-y-0 bg-blood shadow-[0_0_12px_rgba(229,9,20,0.75)] transition-transform duration-300 group-hover:scale-y-100 ${
+            side === 'l' ? 'right-0' : 'left-0'
+          }`}
         />
-        <div className={side === 'l' ? 'md:order-1' : ''}>{text(side === 'l' ? 'right' : 'left')}</div>
+
+        <div
+          className={`relative flex items-center gap-4 px-3 py-2.5 sm:gap-5 sm:px-4 ${
+            side === 'l' ? 'md:flex-row-reverse' : ''
+          }`}
+        >
+          <motion.button
+            type="button"
+            onClick={() => onSelect(entry)}
+            whileHover={{ scale: 1.95, zIndex: 60 }}
+            whileTap={{ scale: 1.86 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+            className="relative block aspect-[2/3] w-[74px] shrink-0 cursor-pointer outline-none sm:w-[88px]"
+            style={{ zIndex: 2 }}
+          >
+            <ReelPosterCard entry={entry} num={num} />
+          </motion.button>
+
+          <div className={`min-w-0 ${side === 'l' ? 'md:text-right' : ''}`}>
+            <div
+              className={`flex items-center gap-2 font-tele text-[9px] tracking-[0.2em] ${
+                side === 'l' ? 'md:justify-end' : ''
+              }`}
+            >
+              <span className="flex items-center gap-1 font-medium text-blood">
+                {entry.type === 'movie' ? <Film size={9} /> : <Tv size={9} />}
+                {entry.type === 'movie' ? 'FILM' : 'SERIES'}
+              </span>
+              <span className="text-line">/</span>
+              <span className="text-dim">{entry.year ?? '————'}</span>
+            </div>
+            <h3 className="mt-1 truncate text-lg font-bold tracking-tight text-bone sm:text-[22px]">
+              {entry.title}
+            </h3>
+            <div className="mt-1 font-tele text-[9px] tracking-[0.16em] text-dim">
+              LOGGED {fmtLogged(entry.addedAt)}
+            </div>
+            <div className="mt-1 font-tele text-[9px] uppercase tracking-[0.16em] text-dim">
+              {entry.type === 'movie' ? (
+                total ? fmtDur(total) : '—'
+              ) : (
+                <>
+                  {unit ? fmtDur(unit) : '—'} <span className="text-line">·</span> ≈
+                  {total ? fmtDur(total) : '—'}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );
@@ -141,14 +248,12 @@ function ReelBlock({
 /* ── one year on the reel ──────────────────────────────────────────────── */
 function YearSection({
   group,
-  order,
   startIndex,
   maxCount,
   onInView,
   onSelect,
 }: {
   group: YearGroup;
-  order: Order;
   startIndex: number;
   maxCount: number;
   onInView: (y: number) => void;
@@ -188,7 +293,6 @@ function YearSection({
           <ReelBlock
             key={e.id}
             entry={e}
-            order={order}
             index={startIndex + i}
             side={i % 2 === 0 ? 'l' : 'r'}
             first={i === 0}
@@ -238,14 +342,17 @@ function Intermission({ stat }: { stat: DecadeStat }) {
 }
 
 /* ── sticky filter chips ───────────────────────────────────────────────── */
-function ChipsBar({
+export function ChipsBar({
   groups,
   decades,
   hidden,
   onToggleYear,
   onToggleDecade,
   onAll,
-  onNone,
+  typeFilter,
+  onTypeFilter,
+  label = 'REEL FILTER',
+  hint = 'REEL SHORTENS LIVE',
 }: {
   groups: YearGroup[];
   decades: DecadeStat[];
@@ -253,7 +360,10 @@ function ChipsBar({
   onToggleYear: (y: number) => void;
   onToggleDecade: (d: number) => void;
   onAll: () => void;
-  onNone: () => void;
+  typeFilter: TypeFilter;
+  onTypeFilter: (t: TypeFilter) => void;
+  label?: string;
+  hint?: string;
 }) {
   const visible = groups.reduce((s, g) => s + (hidden.has(g.year) ? 0 : g.items.length), 0);
   const total = groups.reduce((s, g) => s + g.items.length, 0);
@@ -261,7 +371,31 @@ function ChipsBar({
   return (
     <div className="sticky top-[49px] z-40 border-b border-line bg-ink/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-1.5 px-5 py-2.5">
-        <span className="mr-2 font-tele text-[9px] tracking-[0.3em] text-blood">REEL FILTER</span>
+        <span className="mr-2 font-tele text-[9px] tracking-[0.3em] text-blood">{label}</span>
+
+        {/* films / series / both */}
+        <div className="mr-1 flex overflow-hidden rounded-full border border-line">
+          {(
+            [
+              ['all', 'ALL', null],
+              ['movie', 'FILMS', Film],
+              ['show', 'SERIES', Tv],
+            ] as Array<[TypeFilter, string, typeof Film | null]>
+          ).map(([id, lbl, Icon]) => (
+            <button
+              key={id}
+              onClick={() => onTypeFilter(id)}
+              className={`flex cursor-pointer items-center gap-1 px-2.5 py-1 font-tele text-[9px] tracking-[0.16em] transition-colors duration-200 ${
+                id !== 'all' ? 'border-l border-line' : ''
+              } ${typeFilter === id ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'}`}
+            >
+              {Icon && <Icon size={9} className={typeFilter === id ? 'text-blood' : ''} />}
+              {lbl}
+            </button>
+          ))}
+        </div>
+        <span className="mx-1 h-4 w-px bg-line" />
+
         {decades.map((d) => {
           const allIn = d.years.every((y) => !hidden.has(y));
           return (
@@ -290,9 +424,8 @@ function ChipsBar({
         })}
         <span className="mx-1 h-4 w-px bg-line" />
         <button onClick={onAll} className={`${chip} border-line text-fog hover:border-blood/70 hover:text-bone`}>ALL</button>
-        <button onClick={onNone} className={`${chip} border-line text-fog hover:border-blood/70 hover:text-bone`}>NONE</button>
         <span className="ml-auto hidden font-tele text-[9px] tracking-[0.2em] text-dim sm:inline">
-          SHOWING {visible}/{total} · REEL SHORTENS LIVE
+          SHOWING {visible}/{total} · {hint}
         </span>
       </div>
     </div>
@@ -363,33 +496,46 @@ export default function Reel({
   items,
   order,
   onSelect,
+  hidden,
+  onHidden,
+  dir,
+  onDir,
+  typeFilter,
+  onTypeFilter,
 }: {
   items: Entry[];
   order: Order;
   onSelect: (e: Entry) => void;
+  hidden: Set<number>;
+  onHidden: (fn: (prev: Set<number>) => Set<number>) => void;
+  dir: 'asc' | 'desc';
+  onDir: (d: 'asc' | 'desc') => void;
+  typeFilter: TypeFilter;
+  onTypeFilter: (t: TypeFilter) => void;
 }) {
   const groups = useMemo(() => groupByYear(items, order), [items, order]);
   const decades = useMemo(() => decadeStats(groups), [groups]);
-  const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setHidden(new Set()), [order]);
   const onInView = useCallback((y: number) => setActiveYear(y), []);
   const maxCount = useMemo(() => Math.max(...groups.map((g) => g.items.length), 1), [groups]);
 
-  const toggleYear = useCallback((y: number) => {
-    setHidden((h) => {
-      const n = new Set(h);
-      if (n.has(y)) n.delete(y);
-      else n.add(y);
-      return n;
-    });
-  }, []);
+  const toggleYear = useCallback(
+    (y: number) => {
+      onHidden((h) => {
+        const n = new Set(h);
+        if (n.has(y)) n.delete(y);
+        else n.add(y);
+        return n;
+      });
+    },
+    [onHidden],
+  );
 
   const toggleDecade = useCallback(
     (d: number) => {
-      setHidden((h) => {
+      onHidden((h) => {
         const n = new Set(h);
         const ys = groups.filter((g) => Math.floor(g.year / 10) * 10 === d).map((g) => g.year);
         const allIn = ys.every((y) => !n.has(y));
@@ -397,29 +543,64 @@ export default function Reel({
         return n;
       });
     },
-    [groups],
+    [groups, onHidden],
   );
 
-  const visible = groups.filter((g) => !hidden.has(g.year));
+  /* chronological direction: groups always thread ascending underneath so the
+     #NNN numbering stays stable when the reel is flipped to newest-first */
+  const visibleAsc = useMemo(() => groups.filter((g) => !hidden.has(g.year)), [groups, hidden]);
+  const visible = useMemo(
+    () => (dir === 'asc' ? visibleAsc : [...visibleAsc].reverse()),
+    [visibleAsc, dir],
+  );
   const startIndices = useMemo(() => {
     const m = new Map<number, number>();
     let acc = 0;
-    for (const g of visible) {
+    for (const g of visibleAsc) {
       m.set(g.year, acc);
       acc += g.items.length;
     }
     return m;
-  }, [visible]);
+  }, [visibleAsc]);
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="mx-auto max-w-6xl px-5 pb-8 pt-16">
-        <div className="font-tele text-[10px] tracking-[0.3em] text-blood">VIEW 02</div>
-        <h2 className="mt-2 font-display text-6xl tracking-wide text-bone sm:text-7xl">The Reel</h2>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-fog">
-          Every title in line, year by year. The spine thickens where your attention did.
-          Kill a year in the filter and the reel physically shortens.
-        </p>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-6 px-5 pb-8 pt-16">
+        <div className="chrome-orig">
+          <div className="font-tele text-[10px] font-medium tracking-[0.42em] text-blood">VIEW 02</div>
+          <h2 className="mt-2 font-display text-6xl uppercase leading-none tracking-wide text-bone sm:text-7xl">
+            The <span className="text-outline-blood">Reel</span>
+          </h2>
+          <p className="mt-4 max-w-md text-sm leading-relaxed text-fog">
+            Every title in line, year by year. The spine thickens where your attention did.
+            Kill a year in the filter and the reel physically shortens.
+          </p>
+        </div>
+
+        {/* chronological direction */}
+        <div className="chrome-orig flex items-center gap-2.5 pb-1">
+          <span className="font-tele text-[9px] tracking-[0.3em] text-dim">CHRONO</span>
+          <div className="flex overflow-hidden rounded-full border border-line">
+            <button
+              type="button"
+              onClick={() => onDir('asc')}
+              className={`flex cursor-pointer items-center gap-1.5 px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
+                dir === 'asc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
+              }`}
+            >
+              <ArrowUp size={10} className={dir === 'asc' ? 'text-blood' : ''} /> OLDEST
+            </button>
+            <button
+              type="button"
+              onClick={() => onDir('desc')}
+              className={`flex cursor-pointer items-center gap-1.5 border-l border-line px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
+                dir === 'desc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
+              }`}
+            >
+              <ArrowDown size={10} className={dir === 'desc' ? 'text-blood' : ''} /> NEWEST
+            </button>
+          </div>
+        </div>
       </div>
 
       <ChipsBar
@@ -428,8 +609,9 @@ export default function Reel({
         hidden={hidden}
         onToggleYear={toggleYear}
         onToggleDecade={toggleDecade}
-        onAll={() => setHidden(new Set())}
-        onNone={() => setHidden(new Set(groups.map((g) => g.year)))}
+        onAll={() => onHidden(() => new Set())}
+        typeFilter={typeFilter}
+        onTypeFilter={onTypeFilter}
       />
 
       <ScrubberRail groups={visible} hidden={hidden} activeYear={activeYear} container={containerRef} />
@@ -445,7 +627,6 @@ export default function Reel({
                 {decadeChanged && <Intermission stat={stat} />}
                 <YearSection
                   group={g}
-                  order={order}
                   startIndex={startIndices.get(g.year) ?? 0}
                   maxCount={maxCount}
                   onInView={onInView}

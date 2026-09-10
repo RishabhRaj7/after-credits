@@ -1,8 +1,7 @@
 import { useId } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
-import { History, CalendarClock, Waypoints, GalleryVertical, CircleDot, ArrowRight } from 'lucide-react';
-import type { Order } from '../data/library';
-import { TOTAL_DHM } from '../data/library';
+import { History, CalendarClock, Waypoints, GalleryVertical, CircleDot, ArrowRight, Upload } from 'lucide-react';
+import type { LibraryStats, Order } from '../data/library';
 
 export type ViewId = 'burst' | 'reel';
 export const VIEW_META: Record<ViewId, { label: string; alias: string; blurb: string }> = {
@@ -130,10 +129,12 @@ interface BarProps {
   view: ViewId;
   onOrder: (o: Order) => void;
   onSwitch: (v: ViewId) => void;
+  onImport: () => void;
+  stats: LibraryStats;
   progress: MotionValue<number>; // page scroll — rendered as a seek hairline
 }
 
-export function TopBar({ order, view, onOrder, onSwitch, progress }: BarProps) {
+export function TopBar({ order, view, onOrder, onSwitch, onImport, stats, progress }: BarProps) {
   return (
     <motion.header
       initial={{ y: -72 }}
@@ -147,10 +148,18 @@ export function TopBar({ order, view, onOrder, onSwitch, progress }: BarProps) {
           <span className="block h-4 w-4 bg-blood shadow-[0_0_12px_rgba(229,9,20,0.7)]" />
           <span className="font-display text-sm tracking-[0.12em] text-bone">WATCH LOG</span>
           <span className="hidden font-tele text-[10px] tracking-[0.2em] text-dim md:block">
-            — {TOTAL_DHM.days}D {String(TOTAL_DHM.hours).padStart(2, '0')}H ON RECORD
+            — {stats.days}D {String(stats.hours).padStart(2, '0')}H ON RECORD
           </span>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={onImport}
+            title="Import your CSV"
+            className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-line px-2.5 py-1.5 font-tele text-[10px] tracking-[0.16em] text-fog transition-colors hover:border-blood/70 hover:text-bone"
+          >
+            <Upload size={12} strokeWidth={2.2} />
+            <span className="hidden sm:inline">IMPORT</span>
+          </button>
           <OrderToggle order={order} onChange={onOrder} compact />
           <div className="hidden items-center gap-1 sm:flex">
             {(['burst', 'reel'] as ViewId[]).map((id) => {

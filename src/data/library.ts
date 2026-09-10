@@ -43,11 +43,16 @@ export interface DecadeStat {
   years: number[];
 }
 
-/* ── the library (baked-in sample export) ──────────────────────────────── */
+/* ── the library ──────────────────────────────────────────────────────────
+   `data/baked-library.json` is the committed source of truth — produced by
+   `node scripts/bake.mjs` from your CSV (posters downloaded alongside into
+   public/posters/). When it's empty the bundled sample below stands in. */
+
+import bakedJson from '../../data/baked-library.json';
 
 const E = (e: Entry) => e;
 
-export const LIBRARY: Entry[] = [
+const SAMPLE_LIB: Entry[] = [
   E({ id: 'interstellar', type: 'movie', title: 'Interstellar', year: 2014, addedAt: '2019-02-11', releaseDate: '2014-11-05', runtimeMinutes: 169, favorite: true, poster: 'gEU2QniE6E77NI6lCU6MxlNBvIx', genres: ['Sci-Fi', 'Drama', 'Adventure'], overview: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity’s survival as Earth quietly dies.' }),
   E({ id: 'inception', type: 'movie', title: 'Inception', year: 2010, addedAt: '2019-02-12', releaseDate: '2010-07-15', runtimeMinutes: 148, genres: ['Sci-Fi', 'Thriller'], overview: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task: planting an idea.' }),
   E({ id: 'get-out', type: 'movie', title: 'Get Out', year: 2017, addedAt: '2019-06-21', releaseDate: '2017-02-24', runtimeMinutes: 104, poster: 'tFXcEccSQMf3lfhfXKSU9iRBpa3', genres: ['Horror', 'Thriller'] }),
@@ -91,6 +96,9 @@ export const LIBRARY: Entry[] = [
   E({ id: 'dark', type: 'show', title: 'Dark', year: 2017, addedAt: '2024-11-02', releaseDate: '2017-12-01', episodes: 10, episodeRuntime: 50, episodesEstimated: true, genres: ['Sci-Fi', 'Mystery', 'Thriller'] }),
 ];
 
+export const LIBRARY: Entry[] =
+  (bakedJson as unknown as Entry[]).length > 0 ? (bakedJson as unknown as Entry[]) : SAMPLE_LIB;
+
 /* ── formatting ────────────────────────────────────────────────────────── */
 
 const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
@@ -116,9 +124,13 @@ export function fmtDur(min: number): string {
   return `${Math.round(min)}m`;
 }
 
+export type TypeFilter = 'all' | 'movie' | 'show';
+
+/* watch time with sensible fallbacks for incomplete rows:
+   movies default to 120 min; show episodes default to 40 min each */
 export function watchMinutes(e: Entry): number {
-  if (e.type === 'movie') return e.runtimeMinutes ?? 0;
-  return (e.episodes ?? 0) * (e.episodeRuntime ?? 0);
+  if (e.type === 'movie') return e.runtimeMinutes ?? 120;
+  return (e.episodes ?? 0) * (e.episodeRuntime ?? 40);
 }
 
 export function factLine(e: Entry): string {
@@ -211,6 +223,36 @@ export function decadeStats(groups: YearGroup[]): DecadeStat[] {
 
 export function totalMinutes(items: Entry[]): number {
   return items.reduce((s, e) => s + watchMinutes(e), 0);
+}
+
+export interface LibraryStats {
+  days: number;
+  hours: number;
+  minutes: number;
+  from: Date;
+  to: Date;
+  movies: number;
+  shows: number;
+  entries: number;
+}
+
+export function statsFor(items: Entry[]): LibraryStats {
+  const min = totalMinutes(items);
+  const added = items
+    .map((e) => Date.parse(e.addedAt + 'T00:00:00Z'))
+    .filter((n) => !Number.isNaN(n));
+  const lo = added.length ? Math.min(...added) : Date.now();
+  const hi = added.length ? Math.max(...added) : Date.now();
+  return {
+    days: Math.floor(min / 1440),
+    hours: Math.floor((min % 1440) / 60),
+    minutes: min % 60,
+    from: new Date(lo),
+    to: new Date(hi),
+    movies: items.filter((e) => e.type === 'movie').length,
+    shows: items.filter((e) => e.type === 'show').length,
+    entries: items.length,
+  };
 }
 
 /* ── original-header bindings ──────────────────────────────────────────── */

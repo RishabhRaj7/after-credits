@@ -45,6 +45,14 @@ function SeedCard({ entry }: { entry: Entry }) {
 /* original header refers to the bare art layer by this name */
 export const PosterArt = Poster;
 
+/* bare TMDB ids become CDN urls; baked entries carry local paths like
+   "posters/x.jpg" (or full urls) and are used verbatim */
+export function posterSrc(poster: string): string {
+  return poster.includes('/') || poster.startsWith('http')
+    ? poster
+    : `https://image.tmdb.org/t/p/w500/${poster}.jpg`;
+}
+
 export function Poster({ entry, className = '' }: { entry: Entry; className?: string }) {
   const [broken, setBroken] = useState(false);
   const showImg = !!entry.poster && !broken;
@@ -52,7 +60,7 @@ export function Poster({ entry, className = '' }: { entry: Entry; className?: st
     <div className={`relative overflow-hidden bg-coal ${className}`}>
       {showImg ? (
         <img
-          src={`https://image.tmdb.org/t/p/w500/${entry.poster}.jpg`}
+          src={posterSrc(entry.poster!)}
           alt={entry.title}
           loading="lazy"
           draggable={false}

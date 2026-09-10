@@ -1,27 +1,21 @@
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronDown, Info } from 'lucide-react';
 import CountUp from './CountUp';
 import { PosterArt } from './Poster';
 import { OrderToggle, ViewSwitcher, type ViewId } from './Controls';
-import { ENTRIES, META, TOTAL_DHM, SPAN, type Order } from '../data/library';
+import type { Entry, LibraryStats, Order } from '../data/library';
 
 interface Props {
   order: Order;
   view: ViewId;
   onOrder: (o: Order) => void;
   onSwitch: (v: ViewId) => void;
+  entries: Entry[];
+  stats: LibraryStats;
 }
 
-/* a sparse, evenly-spaced slice of the library for the drifting wall
-   (cycles when the library is smaller than 34 so both walls stay full) */
-const WALL: typeof ENTRIES = (() => {
-  const stride = Math.max(1, Math.floor(ENTRIES.length / 34));
-  const picks: typeof ENTRIES = [];
-  for (let i = 0; picks.length < 34; i += stride) picks.push(ENTRIES[i % ENTRIES.length]);
-  return picks;
-})();
-
-function WallRow({ items, reverse = false }: { items: typeof ENTRIES; reverse?: boolean }) {
+function WallRow({ items, reverse = false }: { items: Entry[]; reverse?: boolean }) {
   const doubled = [...items, ...items];
   return (
     <div
@@ -49,8 +43,17 @@ const rise = {
   }),
 };
 
-export default function Hero({ order, view, onOrder, onSwitch }: Props) {
-  const years = `${SPAN.from.getUTCFullYear()} ————— ${SPAN.to.getUTCFullYear()}`;
+export default function Hero({ order, view, onOrder, onSwitch, entries, stats }: Props) {
+  /* a sparse, evenly-spaced slice of the active library for the drifting
+     wall (cycles when the library is smaller than 34 so both walls stay full) */
+  const wall = useMemo(() => {
+    if (!entries.length) return [] as Entry[];
+    const stride = Math.max(1, Math.floor(entries.length / 34));
+    const picks: Entry[] = [];
+    for (let i = 0; picks.length < 34; i += stride) picks.push(entries[i % entries.length]);
+    return picks;
+  }, [entries]);
+  const years = `${stats.from.getUTCFullYear()} ————— ${stats.to.getUTCFullYear()}`;
   return (
     <section className="chrome-orig relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
       {/* letterbox bar */}
@@ -64,8 +67,8 @@ export default function Hero({ order, view, onOrder, onSwitch }: Props) {
       </div>
 
       {/* drifting title-card walls, top + bottom */}
-      <div className="absolute inset-x-0 top-[104px] z-0 overflow-hidden"><WallRow items={WALL.slice(0, 17)} /></div>
-      <div className="absolute inset-x-0 bottom-[26px] z-0 overflow-hidden"><WallRow items={WALL.slice(17)} reverse /></div>
+      <div className="absolute inset-x-0 top-[104px] z-0 overflow-hidden"><WallRow items={wall.slice(0, 17)} /></div>
+      <div className="absolute inset-x-0 bottom-[26px] z-0 overflow-hidden"><WallRow items={wall.slice(17)} reverse /></div>
 
       {/* readability veil */}
       <div className="absolute inset-0 z-10" style={{
@@ -86,7 +89,7 @@ export default function Hero({ order, view, onOrder, onSwitch }: Props) {
             className="flex items-baseline gap-5 font-display leading-[0.82]"
           >
             <CountUp
-              value={TOTAL_DHM.days}
+              value={stats.days}
               duration={2.9}
               delay={0.35}
               className="text-[clamp(120px,23vw,340px)] text-bone [text-shadow:0_0_60px_rgba(229,9,20,0.22)]"
@@ -98,12 +101,12 @@ export default function Hero({ order, view, onOrder, onSwitch }: Props) {
             className="mb-2 flex items-center gap-4 font-display text-[clamp(28px,4.6vw,64px)]"
           >
             <span className="flex items-baseline gap-2">
-              <CountUp value={TOTAL_DHM.hours} duration={3.1} delay={0.5} pad={2} className="text-outline" />
+              <CountUp value={stats.hours} duration={3.1} delay={0.5} pad={2} className="text-outline" />
               <span className="font-tele text-[11px] tracking-[0.3em] text-blood">HRS</span>
             </span>
             <span className="h-[0.9em] w-px bg-line" />
             <span className="flex items-baseline gap-2">
-              <CountUp value={TOTAL_DHM.minutes} duration={3.3} delay={0.55} pad={2} className="text-outline" />
+              <CountUp value={stats.minutes} duration={3.3} delay={0.55} pad={2} className="text-outline" />
               <span className="font-tele text-[11px] tracking-[0.3em] text-blood">MIN</span>
             </span>
           </motion.div>
@@ -112,9 +115,9 @@ export default function Hero({ order, view, onOrder, onSwitch }: Props) {
         <motion.p variants={rise} initial="hidden" animate="show" custom={0.42}
           className="mt-6 max-w-xl text-sm leading-relaxed text-fog sm:text-base">
           Every film and series I sat through —{' '}
-          <span className="text-bone">{META.totals.movies} films</span>,{' '}
-          <span className="text-bone">{META.totals.shows} series</span>,{' '}
-          <span className="text-bone">{META.totals.entries} titles</span> — laid end to end
+          <span className="text-bone">{stats.movies} films</span>,{' '}
+          <span className="text-bone">{stats.shows} series</span>,{' '}
+          <span className="text-bone">{stats.entries} titles</span> — laid end to end
           in one continuous runtime.
         </motion.p>
 
