@@ -470,7 +470,14 @@ function ScrubberRail({
   }, [groups, totalW]);
   const jump = (y: number) => {
     if (hidden.has(y)) return;
-    document.getElementById(`y${y}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById(`y${y}`);
+    if (!el) return;
+    /* land the year a touch higher so the plate clears the fixed top bar
+       (48px) + the sticky filter chips instead of tucking under them.
+       Tune JUMP_OFFSET to taste — bigger scrolls further (year sits higher). */
+    const JUMP_OFFSET = 100;
+    const top = el.getBoundingClientRect().top + window.scrollY - JUMP_OFFSET;
+    window.scrollTo({ top, behavior: 'smooth' });
   };
 
   /* only surface the rail while the reel section actually occupies the viewport */
@@ -544,9 +551,9 @@ function ScrubberRail({
       <div className="relative flex-1 md:w-16">
         {/* spine */}
         <div className="absolute inset-y-0 left-[7px] w-px bg-gradient-to-b from-blood/50 via-line to-blood/40 md:left-[9px]" />
-        {/* scroll-progress thumb — the little red square */}
+        {/* scroll-progress thumb — the little red circle */}
         <motion.div
-          className="absolute left-[7px] h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 bg-blood shadow-[0_0_10px_rgba(229,9,20,0.85)] md:left-[9px]"
+          className="absolute left-[7px] h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood shadow-[0_0_10px_rgba(229,9,20,0.85)] md:left-[9px]"
           style={{ top: thumbTop }}
         />
         {groups.map((g, i) => {
