@@ -453,19 +453,21 @@ function ScrubberRail({
   const thumbTop = useScrollTop(scrollYProgress);
   const max = Math.max(...groups.map((g) => g.items.length), 1);
   /* place dots by cumulative content weight so the rail mirrors the page:
-     heavy years stretch their gap, light years sit close together, and the
-     scroll thumb lands on the dot of the year actually on screen */
+     heavy years stretch their gap, light years sit close together, and a dot
+     is anchored at the START of its year's span — the thumb reaches it the
+     moment that year's section begins, not half-way through it */
   const BASE = 3; // plate + breathing room per year, in title units
   const totalW = groups.reduce((s, g) => s + g.items.length + BASE, 0) || 1;
-  const fracs: number[] = [];
-  {
+  const fracs = useMemo(() => {
+    const f: number[] = [];
     let acc = 0;
     for (const g of groups) {
       const w = g.items.length + BASE;
-      fracs.push((acc + w / 2) / totalW);
+      f.push(acc / totalW);
       acc += w;
     }
-  }
+    return f;
+  }, [groups, totalW]);
   const jump = (y: number) => {
     if (hidden.has(y)) return;
     document.getElementById(`y${y}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -483,30 +485,30 @@ function ScrubberRail({
     return () => io.disconnect();
   }, [container]);
 
-  /* positional sync: the last year section whose top crossed the 45% line wins.
-     direct measurement never skips a year, whatever the scroll speed */
+  /* positional sync: a year's dot lights the instant the rail thumb reaches it.
+     the thumb rides scrollYProgress linearly top-to-bottom while each dot sits
+     at its weighted start-fraction of the rail, so compare the live progress
+     against the same fractions instead of a viewport line — this way the dot
+     never lags behind the thumb */
   const [activeYearNow, setActiveYearNow] = useState<number | null>(activeYear);
   useEffect(() => {
     if (!inReel) return;
     let raf = 0;
     const update = () => {
       raf = 0;
-      /* a year owns the rail dot while its section spans the vertical centre
-         of the viewport — the point you're actually reading at */
-      const line = window.innerHeight * 0.5;
+      const p = scrollYProgress.get();
       let current: number | null = null;
-      for (const g of groups) {
-        const el = document.getElementById(`y${g.year}`);
-        if (!el) continue;
-        if (el.getBoundingClientRect().top <= line) current = g.year;
+      for (let i = 0; i < fracs.length; i++) {
+        if (p >= fracs[i]) current = groups[i].year;
         else break;
       }
-      /* end clamp: a short final year may never push its top past centre
-         before the page runs out — keep it lit once we've scrolled through it */
+      /* end clamp: if the page bottoms out before the rail's end offset, the
+         thumb never touches the final dot — keep it lit once that year's
+         section has scrolled into the viewport */
       const last = groups[groups.length - 1];
       if (last) {
         const el = document.getElementById(`y${last.year}`);
-        if (el && el.getBoundingClientRect().bottom <= line) current = last.year;
+        if (el && el.getBoundingClientRect().bottom <= window.innerHeight) current = last.year;
       }
       setActiveYearNow((prev) => (prev === current ? prev : current));
     };
@@ -521,7 +523,7 @@ function ScrubberRail({
       window.removeEventListener('resize', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [inReel, groups]);
+  }, [inReel, groups, fracs, scrollYProgress]);
 
   if (groups.length === 0) return null;
   /* portal to <body>: an ancestor motion.main carries filter: blur(0px), which
