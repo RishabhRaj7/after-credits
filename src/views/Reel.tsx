@@ -369,7 +369,7 @@ export function ChipsBar({
   const total = groups.reduce((s, g) => s + g.items.length, 0);
   const chip = 'rounded-full border px-2.5 py-1 font-tele text-[9.5px] tracking-[0.14em] transition-all duration-200 cursor-pointer';
   return (
-    <div className="sticky top-[49px] z-40 border-b border-line bg-ink/90 backdrop-blur-md">
+    <div className="sticky top-12 z-40 border-b border-line bg-ink/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-1.5 px-5 py-2.5">
         <span className="mr-2 font-tele text-[9px] tracking-[0.3em] text-blood">{label}</span>
 

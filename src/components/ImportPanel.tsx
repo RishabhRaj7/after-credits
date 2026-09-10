@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -31,6 +31,7 @@ interface Props {
   activeCount: number;
   storeMode: StoreMode;
   onRestoreSample: () => Promise<void>;
+  initialTab?: 'import' | 'edit';
 }
 
 const field =
@@ -51,8 +52,12 @@ export default function ImportPanel({
   activeCount,
   storeMode,
   onRestoreSample,
+  initialTab = 'import',
 }: Props) {
-  const [tab, setTab] = useState<'import' | 'edit'>('import');
+  const [tab, setTab] = useState<'import' | 'edit'>(initialTab);
+  useEffect(() => {
+    if (open) setTab(initialTab);
+  }, [open, initialTab]);
   const [key, setKey] = useState(() => getTmdbKey());
   const [csvText, setCsvText] = useState('');
   const [fileName, setFileName] = useState('');

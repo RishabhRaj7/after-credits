@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { History, CalendarClock, Waypoints, GalleryVertical, CircleDot, ArrowRight, Upload } from 'lucide-react';
 import type { LibraryStats, Order } from '../data/library';
+import Logo from './Logo';
 
 export type ViewId = 'burst' | 'reel';
 export const VIEW_META: Record<ViewId, { label: string; alias: string; blurb: string }> = {
@@ -143,10 +144,15 @@ export function TopBar({ order, view, onOrder, onSwitch, onImport, stats, progre
       transition={{ type: 'spring', stiffness: 260, damping: 30 }}
       className="chrome-orig fixed inset-x-0 top-0 z-[70] border-b border-line bg-ink/85 backdrop-blur-md"
     >
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+      <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <span className="block h-4 w-4 bg-blood shadow-[0_0_12px_rgba(229,9,20,0.7)]" />
-          <span className="font-display text-sm tracking-[0.12em] text-bone">WATCH LOG</span>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="cursor-pointer"
+            title="Back to the top"
+          >
+            <Logo />
+          </button>
           <span className="hidden font-tele text-[10px] tracking-[0.2em] text-dim md:block">
             — {stats.days}D {String(stats.hours).padStart(2, '0')}H ON RECORD
           </span>

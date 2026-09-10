@@ -5,11 +5,15 @@ import {
   useScroll,
   useMotionValueEvent,
 } from 'framer-motion';
+import { ArrowUp, ArrowUpRight } from 'lucide-react';
 import { Grain } from './components/Effects';
 import Hero from './components/Hero';
 import CutTo, { type CutSpec } from './components/CutTo';
 import DetailPanel from './components/DetailPanel';
 import ImportPanel from './components/ImportPanel';
+import SiteHeader from './components/SiteHeader';
+import BehindScenes from './components/BehindScenes';
+import Logo from './components/Logo';
 import { TopBar, VIEW_META, type ViewId } from './components/Controls';
 import ClusterBurst from './views/ClusterBurst';
 import Reel from './views/Reel';
@@ -31,6 +35,8 @@ export default function App() {
   const [cut, setCut] = useState<CutSpec | null>(null);
   const [barVisible, setBarVisible] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<'import' | 'edit'>('import');
+  const [behindOpen, setBehindOpen] = useState(false);
 
   /* the active library, in priority order: server store → browser store →
      baked-in sample export */
@@ -96,7 +102,19 @@ export default function App() {
   const onOrder = useCallback((o: Order) => setOrder(o), []);
   const onSelect = useCallback((e: Entry) => setSelected(e), []);
   const onClose = useCallback(() => setSelected(null), []);
-  const onOpenImport = useCallback(() => setImportOpen(true), []);
+  const onOpenImport = useCallback(() => {
+    setImportTab('import');
+    setImportOpen(true);
+  }, []);
+  const onOpenCollection = useCallback(() => {
+    setImportTab('edit');
+    setImportOpen(true);
+  }, []);
+  const onJourney = useCallback(() => {
+    if (!viewsRef.current) return;
+    const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - 56;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  }, []);
   const onImported = useCallback(async (entries: Entry[]) => {
     const onServer = await saveServerLibrary(entries);
     if (!onServer) saveStoredLibrary(entries); // static host → keep it in the browser
@@ -114,6 +132,13 @@ export default function App() {
     <div className="relative min-h-screen bg-ink text-bone">
       <Grain />
       <CutTo cut={cut} />
+
+      <SiteHeader
+        count={library.length}
+        onJourney={onJourney}
+        onCollection={onOpenCollection}
+        onBehind={() => setBehindOpen(true)}
+      />
 
       <AnimatePresence>
         {barVisible && (
@@ -171,23 +196,85 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <footer className="border-t border-line py-8">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 font-tele text-[9px] tracking-[0.26em] text-dim">
-          <span>AFTER CREDITS · A PERSONAL SCREENING HISTORY</span>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onOpenImport}
-              className="cursor-pointer tracking-[0.26em] text-fog transition-colors hover:text-blood"
-            >
-              {isStored ? 'MANAGE LOCAL DATA' : 'IMPORT YOUR CSV'}
-            </button>
-            <span>NO SPOILERS PAST THIS POINT</span>
+      <footer className="chrome-orig border-t border-line bg-ink">
+        <div className="mx-auto max-w-[1600px] px-5 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-7">
+            <div className="flex flex-wrap items-center gap-5">
+              <Logo />
+              <span className="font-tele text-[10px] tracking-[0.18em] text-fog">
+                A life measured in stories, not screens.
+              </span>
+            </div>
+            <div className="flex items-center gap-6">
+              <button
+                onClick={onOpenImport}
+                className="cursor-pointer font-tele text-[10px] tracking-[0.26em] text-dim transition-colors hover:text-bone"
+              >
+                {isStored ? 'MANAGE DATA' : 'IMPORT DATA'}
+              </button>
+              <button
+                onClick={() => setBehindOpen(true)}
+                className="group flex cursor-pointer items-center gap-1.5 font-tele text-[10px] tracking-[0.26em] text-dim transition-colors hover:text-bone"
+              >
+                THE SMALL PRINT
+                <ArrowUpRight
+                  size={12}
+                  className="text-blood transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="h-px bg-line" />
+
+          <div className="flex flex-wrap items-start justify-between gap-4 py-6">
+            <p className="max-w-3xl font-tele text-[9.5px] leading-relaxed tracking-[0.06em] text-dim">
+              Watch order uses the date added, not a recorded watch date. Estimated time includes
+              each film's runtime (120 min when unknown) and each series' episodes × episode
+              runtime (40 min when unknown); ongoing series may undercount. Missing metadata keeps
+              its default — it never silently counts zero.
+            </p>
+            <div className="space-y-1.5 sm:text-right">
+              <a
+                href="https://www.themoviedb.org"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 font-tele text-[9.5px] tracking-[0.14em] text-fog transition-colors hover:text-bone sm:justify-end"
+              >
+                Metadata & posters via TMDB
+                <ArrowUpRight size={10} className="text-blood" />
+              </a>
+              <span className="block font-tele text-[8.5px] tracking-[0.08em] text-dim">
+                This product uses the TMDB API but is not endorsed or certified by TMDB.
+              </span>
+            </div>
           </div>
         </div>
       </footer>
 
+      {/* back to the top */}
+      <AnimatePresence>
+        {barVisible && (
+          <motion.button
+            type="button"
+            title="Back to the top"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 18 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className="fixed bottom-6 right-6 z-[80] flex h-11 w-11 cursor-pointer items-center justify-center bg-blood text-white shadow-[0_0_26px_rgba(229,9,20,0.55)] transition-colors hover:bg-ember"
+          >
+            <ArrowUp size={16} strokeWidth={2.4} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <BehindScenes open={behindOpen} onClose={() => setBehindOpen(false)} count={library.length} />
+
       <ImportPanel
         open={importOpen}
+        initialTab={importTab}
         onClose={() => setImportOpen(false)}
         onImported={onImported}
         onCommit={onImported}
