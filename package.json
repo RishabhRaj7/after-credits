@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "bake": "node scripts/bake.mjs",
     "enrich": "node scripts/enrich.mjs",
-    "seed": "node scripts/seed-offline.mjs"
+    "seed": "node scripts/seed-offline.mjs",
+    "fold-live": "node scripts/fold-live.mjs"
   },
   "dependencies": {
     "framer-motion": "^13.2.0",

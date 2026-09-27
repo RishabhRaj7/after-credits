@@ -21,6 +21,9 @@ import {
   type StoreMode,
 } from '../data/importer';
 import EditorPanel from './EditorPanel';
+import QuickLog from './QuickLog';
+
+export type DataTab = 'log' | 'import' | 'edit';
 
 interface Props {
   open: boolean;
@@ -30,13 +33,14 @@ interface Props {
   entries: Entry[];
   storeMode: StoreMode;
   onRestore: () => Promise<void>;
-  initialTab?: 'import' | 'edit';
+  initialTab?: DataTab;
 }
 
 const field =
   'w-full border border-line bg-ink/80 px-3 py-2 font-tele text-[11px] tracking-[0.06em] text-bone placeholder:text-dim/70 outline-none transition-colors focus:border-blood/70';
 
 const MODE_LABEL: Record<StoreMode, string> = {
+  live: 'LIVE LOG ACTIVE (GIST)',
   server: 'SERVER STORE ACTIVE',
   browser: 'BROWSER STORE ACTIVE',
   sample: 'BAKED LIBRARY ACTIVE',
@@ -50,9 +54,9 @@ export default function ImportPanel({
   entries,
   storeMode,
   onRestore,
-  initialTab = 'import',
+  initialTab = 'log',
 }: Props) {
-  const [tab, setTab] = useState<'import' | 'edit'>(initialTab);
+  const [tab, setTab] = useState<DataTab>(initialTab);
   useEffect(() => {
     if (open) setTab(initialTab);
   }, [open, initialTab]);
@@ -132,10 +136,10 @@ export default function ImportPanel({
               <div className="flex items-center gap-2.5">
                 <Database size={14} className="text-blood" />
                 <span className="font-display text-lg font-bold tracking-[0.1em] text-bone">
-                  DATA IMPORT
+                  DATA
                 </span>
                 <span className="hidden font-tele text-[9px] tracking-[0.26em] text-dim sm:block">
-                  IMPORT · EDIT · EXPORT — SHIPS INSIDE THE SITE
+                  LOG · IMPORT · EDIT — NO REDEPLOY NEEDED
                 </span>
               </div>
               <button
@@ -152,6 +156,7 @@ export default function ImportPanel({
             <div className="flex border-b border-line">
               {(
                 [
+                  ['log', 'QUICK LOG'],
                   ['import', 'IMPORT CSV'],
                   ['edit', 'EDIT LIBRARY'],
                 ] as const
@@ -170,6 +175,7 @@ export default function ImportPanel({
               ))}
             </div>
 
+            {tab === 'log' && <QuickLog entries={entries} onCommit={onCommit} />}
             {tab === 'edit' && <EditorPanel entries={entries} onCommit={onCommit} />}
 
             {tab === 'import' && (
@@ -178,7 +184,7 @@ export default function ImportPanel({
               {/* active library banner */}
               <div className="flex flex-wrap items-center justify-between gap-2 border border-line bg-ink/60 px-3 py-2">
                 <span className="font-tele text-[9.5px] tracking-[0.18em] text-fog">
-                  <span className={storeMode === 'server' ? 'text-blood' : ''}>
+                  <span className={storeMode === 'server' || storeMode === 'live' ? 'text-blood' : ''}>
                     {MODE_LABEL[storeMode]}
                   </span>{' '}
                   · <span className="text-bone">{entries.length} TITLES</span>
@@ -297,7 +303,9 @@ export default function ImportPanel({
                 <div className="flex items-center gap-2 border border-blood/40 bg-blood/10 px-3 py-2.5 font-tele text-[10px] tracking-[0.16em] text-bone">
                   <CheckCircle2 size={13} className="shrink-0 text-blood" />
                   {resultCount} TITLES LOADED &{' '}
-                  {storeMode === 'server'
+                  {storeMode === 'live'
+                    ? 'PUBLISHED TO THE LIVE LOG — EVERY VISITOR SEES THEM.'
+                    : storeMode === 'server'
                     ? 'STORED ON SERVER — EVERY DEVICE SEES THEM.'
                     : 'STORED IN THIS BROWSER (NO SERVER DETECTED).'}{' '}
                   POSTERS STREAM FROM TMDB.
@@ -316,7 +324,9 @@ export default function ImportPanel({
               <span className="font-tele text-[9px] tracking-[0.2em] text-dim">
                 {busy
                   ? 'SAFE TO CLOSE? NO — CANCEL FIRST'
-                  : storeMode === 'server'
+                  : storeMode === 'live'
+                    ? 'PUBLISHES TO THE LIVE GIST · KEYS STAY LOCAL'
+                    : storeMode === 'server'
                     ? 'SAVES TO YOUR SERVER · KEY STAYS LOCAL'
                     : 'NO SERVER — SAVES TO THIS BROWSER'}
               </span>

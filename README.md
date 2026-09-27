@@ -35,6 +35,35 @@ live in `public/posters/`. No runtime API calls.
 
 ## Data
 
+### Log new titles live — no commit, no redeploy
+
+A GitHub Gist acts as the live database. The site loads the baked library,
+then layers the gist's changes over it for every visitor. You add titles
+from the site itself.
+
+**One-time setup**
+
+1. Create a gist at <https://gist.github.com> with one file named
+   `after-credits-live.json` containing `{}` (secret is fine).
+2. Put the gist id (the hash in its URL) in your host's environment as
+   `VITE_LIBRARY_GIST_ID` (or in `.env.local` for local dev) and deploy once.
+3. Create a GitHub token with only the **gist** scope
+   (Settings → Developer settings → Tokens (classic)).
+4. On the site: footer → **Import data** → **Quick log** → *Keys*: paste the
+   token and your TMDB key. Both stay in that browser only.
+
+**Day to day:** Quick log → type the title → pick it → set the date → **Log it**.
+It's live for every visitor on their next page load. Edits and deletes in
+**Edit library** publish the same way. Visitors can read the gist but only
+your token can write to it.
+
+**Now and then** fold the live titles into the bake (downloads their posters):
+
+```bash
+VITE_LIBRARY_GIST_ID=<id> GITHUB_TOKEN=<token> npm run fold-live -- --clear
+npm run build   # then commit
+```
+
 ### Bake your export (permanent, for every visitor)
 
 ```bash
@@ -105,11 +134,13 @@ src/
   data/library.ts         types, genre normalisation, watch time, clustering
   data/almanac.ts         derived facts for the almanac
   data/importer.ts        CSV parsing, TMDB enrichment, persistence
+  data/live.ts            live gist: read, diff, publish
   lib/particles.ts        particle engine
   components/             Hero, GenreDial, Almanac, ControlDeck, DetailPanel,
                           SearchPalette, Footer, panels…
   views/                  ClusterBurst, MobileTrack, Reel
 scripts/bake.mjs          CSV → baked JSON + posters
+scripts/fold-live.mjs     live gist → baked JSON + posters
 scripts/enrich.mjs, seed-offline.mjs, build-pool.mjs, lib/   full refresh pipeline
 server.mjs                zero-dependency static server + /api/library store
 ```

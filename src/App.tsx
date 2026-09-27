@@ -4,7 +4,7 @@ import SiteHeader from './components/SiteHeader';
 import Hero from './components/Hero';
 import Almanac from './components/Almanac';
 import ControlDeck, { ProjectionTabs, VIEW_META, type ViewId } from './components/ControlDeck';
-import CutTo from './components/CutTo';
+import CutTo, { CUT_MS, SWAP_MS } from './components/CutTo';
 import DetailPanel from './components/DetailPanel';
 import SearchPalette from './components/SearchPalette';
 import Footer from './components/Footer';
@@ -35,29 +35,40 @@ import {
   saveStoredLibrary,
   type StoreMode,
 } from './data/importer';
+import { applyOverlay, diffOverlay, fetchOverlay, liveEnabled, publishOverlay } from './data/live';
+import type { DataTab } from './components/ImportPanel';
 
 const scrollToEl = (el: HTMLElement | null, offset = 0) => {
   if (el) window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset), behavior: 'smooth' });
 };
 
 export default function App() {
-  /* the active library, in priority order: server store → browser store → baked */
+  /* the active library: with a live gist configured, the baked library plus
+     the gist's changes (for every visitor); otherwise server store → browser
+     store → baked */
+  const live = liveEnabled();
   const [library, setLibrary] = useState<Entry[]>(() => {
-    const stored = loadStoredLibrary();
+    const stored = live ? null : loadStoredLibrary();
     return stored ? prepareLibrary(stored) : LIBRARY;
   });
-  const [storeMode, setStoreMode] = useState<StoreMode>(() => (loadStoredLibrary() ? 'browser' : 'sample'));
+  const [storeMode, setStoreMode] = useState<StoreMode>(() => (live ? 'live' : loadStoredLibrary() ? 'browser' : 'sample'));
   useEffect(() => {
     let alive = true;
-    fetchServerLibrary().then((entries) => {
-      if (!alive || !entries) return;
-      setLibrary(prepareLibrary(entries));
-      setStoreMode('server');
-    });
+    if (live) {
+      fetchOverlay().then((overlay) => {
+        if (alive && overlay) setLibrary(prepareLibrary(applyOverlay(LIBRARY, overlay)));
+      });
+    } else {
+      fetchServerLibrary().then((entries) => {
+        if (!alive || !entries) return;
+        setLibrary(prepareLibrary(entries));
+        setStoreMode('server');
+      });
+    }
     return () => {
       alive = false;
     };
-  }, []);
+  }, [live]);
 
   const [view, setView] = useState<ViewId>('burst');
   const [order, setOrder] = useState<Order>('watch');
@@ -70,7 +81,7 @@ export default function App() {
   const [cut, setCut] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importTab, setImportTab] = useState<'import' | 'edit'>('import');
+  const [importTab, setImportTab] = useState<DataTab>('log');
   const [notesOpen, setNotesOpen] = useState(false);
 
   const stats = useMemo(() => statsFor(library), [library]);
@@ -125,8 +136,8 @@ export default function App() {
         setView(v);
         const el = deckAnchorRef.current;
         if (el && el.getBoundingClientRect().top < 0) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY });
-      }, 380);
-      window.setTimeout(() => setCut(null), 440);
+      }, SWAP_MS);
+      window.setTimeout(() => setCut(null), CUT_MS);
     },
     [view, cut],
   );
@@ -151,22 +162,34 @@ export default function App() {
     setSearchOpen(false);
     setSelected(e);
   }, []);
-  const openData = useCallback((tab: 'import' | 'edit') => {
+  const openData = useCallback((tab: DataTab) => {
     setImportTab(tab);
     setImportOpen(true);
   }, []);
   const onImported = useCallback(async (entries: Entry[]) => {
+    if (live) {
+      // only the difference from the bake goes to the gist; throws on failure so the panel can say why
+      const next = prepareLibrary(entries);
+      await publishOverlay(diffOverlay(LIBRARY, next));
+      setLibrary(next);
+      return;
+    }
     const onServer = await saveServerLibrary(entries);
     if (!onServer) saveStoredLibrary(entries); // static host → keep it in the browser
     setLibrary(prepareLibrary(entries));
     setStoreMode(onServer ? 'server' : 'browser');
-  }, []);
+  }, [live]);
   const onRestore = useCallback(async () => {
+    if (live) {
+      await publishOverlay(diffOverlay(LIBRARY, LIBRARY));
+      setLibrary(LIBRARY);
+      return;
+    }
     await deleteServerLibrary();
     clearStoredLibrary();
     setLibrary(LIBRARY);
     setStoreMode('sample');
-  }, []);
+  }, [live]);
 
   const goLog = () => scrollToEl(deckAnchorRef.current);
   const goAlmanac = () => scrollToEl(almanacRef.current);
@@ -251,10 +274,10 @@ export default function App() {
           </section>
         </main>
 
-        <Footer stored={storeMode !== 'sample'} onManage={() => openData('import')} onNotes={() => setNotesOpen(true)} />
+        <Footer stored={storeMode !== 'sample'} onManage={() => openData('log')} onNotes={() => setNotesOpen(true)} />
 
         <SearchPalette open={searchOpen} entries={library} onClose={() => setSearchOpen(false)} onPick={onPick} />
-        <BehindScenes open={notesOpen} onClose={() => setNotesOpen(false)} count={library.length} onManage={() => { setNotesOpen(false); openData('import'); }} />
+        <BehindScenes open={notesOpen} onClose={() => setNotesOpen(false)} count={library.length} onManage={() => { setNotesOpen(false); openData('log'); }} />
         <ImportPanel
           open={importOpen}
           initialTab={importTab}

@@ -6,7 +6,7 @@ import { fmtInt, type GenreStat } from '../data/library';
 /* Radial bar chart of the library by genre, three measures on one dial:
      wedge length  → titles in the genre (the rings are its axis)
      wedge colour  → hours watched (stepped sequential ramp, legend below)
-     dot on spoke  → how many of those titles are films, same axis as length */
+     dot on wedge  → how many of those titles are films, same axis as length */
 
 const MIN_N = 6;
 const MAX_N = 14;
@@ -101,8 +101,6 @@ export default function GenreDial({ genres, totalTitles }: { genres: GenreStat[]
               const isOn = active === s.name;
               const dim = active !== null && !isOn;
               const len = r(s.count);
-              const [sx1, sy1] = polar(s.angle, R0);
-              const [sx2, sy2] = polar(s.angle, RAX + 26);
               const [dx, dy] = polar(s.angle, r(s.films));
               const [lx, ly] = polar(s.angle, RLABEL);
               const cos = Math.cos(s.angle);
@@ -133,25 +131,12 @@ export default function GenreDial({ genres, totalTitles }: { genres: GenreStat[]
                     transition={{ ...spring, delay: 0.35 + i * 0.05 }}
                     fill={s.color}
                   />
-                  <motion.line
-                    x1={sx1}
-                    y1={sy1}
-                    x2={sx2}
-                    y2={sy2}
-                    stroke="var(--color-bone)"
-                    strokeOpacity={0.7}
-                    strokeWidth={2}
-                    strokeDasharray="7 7"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.9, delay: 0.6 + i * 0.05 }}
-                  />
                   <motion.circle
                     cx={dx}
                     cy={dy}
-                    r={9}
-                    fill="var(--color-bone)"
-                    stroke="var(--color-ink)"
+                    r={8}
+                    fill="var(--color-ink)"
+                    stroke="var(--color-bone)"
                     strokeWidth={3}
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -251,7 +236,7 @@ export default function GenreDial({ genres, totalTitles }: { genres: GenreStat[]
             <span className="h-2.5 w-4 bg-rule" /> Length · titles
           </span>
           <span className="label flex items-center gap-2 text-[9px] text-fog">
-            <span className="h-2 w-2 rounded-full bg-bone" /> Films
+            <span className="h-2.5 w-2.5 rounded-full border-2 border-bone" /> Films
           </span>
           <span className="flex items-center gap-2">
             <button

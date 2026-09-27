@@ -255,8 +255,8 @@ export default function EditorPanel({ entries, onCommit }: Props) {
       </div>
 
       <div className="border-t border-line px-5 py-2.5 font-tele text-[8.5px] leading-relaxed tracking-[0.14em] text-dim">
-        FIX A MISTAKE → SAVE. THEN <span className="text-blood">EXPORT JSON</span> AND REPLACE{' '}
-        <span className="text-bone">data/baked-library.json</span> IN YOUR REPO — COMMIT TO PUBLISH.
+        WITH THE LIVE LOG ON, SAVE PUBLISHES INSTANTLY. OTHERWISE <span className="text-blood">EXPORT JSON</span> AND REPLACE{' '}
+        <span className="text-bone">data/baked-library.json</span> IN YOUR REPO.
       </div>
     </div>
   );

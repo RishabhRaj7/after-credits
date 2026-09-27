@@ -20,7 +20,6 @@ import {
   type Order,
 } from '../data/library';
 
-const VB_W = 1000;
 const LEFT_X = 330;
 const RIGHT_X = 670;
 const FAN_MAX = 6; // larger clusters render as a contact sheet
@@ -102,7 +101,10 @@ function buildGeo(clusters: Cluster[], order: Order, width: number, pw: number, 
   });
   const H = y + 160;
 
-  const pts = [{ x: nodes[0].x, y: -80 }, ...nodes.map((n) => ({ x: n.x, y: n.y })), { x: nodes[nodes.length - 1].x, y: H + 80 }];
+  /* the path is drawn in real pixels (node x is in 0–1000 units) so the drawn
+     length and the playhead share one coordinate system */
+  const px = (u: number) => (u / 1000) * width;
+  const pts = [{ x: px(nodes[0].x), y: -80 }, ...nodes.map((n) => ({ x: px(n.x), y: n.y })), { x: px(nodes[nodes.length - 1].x), y: H + 80 }];
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 1; i < pts.length; i++) {
     const dy = pts[i].y - pts[i - 1].y;
@@ -447,7 +449,7 @@ export default function ClusterBurst({
   const place = (v: number) => {
     if (!pathRef.current || !dotRef.current || !lenRef.current) return;
     const pt = pathRef.current.getPointAtLength(Math.min(1, Math.max(0, v)) * lenRef.current);
-    dotRef.current.style.left = `${pt.x / 10}%`;
+    dotRef.current.style.left = `${pt.x}px`;
     dotRef.current.style.top = `${pt.y}px`;
     let idx = -1;
     for (let i = 0; i < geo.nodes.length && geo.nodes[i].y <= pt.y + 2; i++) idx = i;
@@ -490,9 +492,9 @@ export default function ClusterBurst({
             <MobileTrack clusters={ordered} order={order} onSelect={onSelect} />
           ) : (
             <>
-              <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${VB_W} ${geo.H}`} preserveAspectRatio="none" fill="none" aria-hidden>
-                <path d={geo.d} stroke="#3a3a42" strokeWidth={1} strokeDasharray="2 7" vectorEffect="non-scaling-stroke" className="track-flow" />
-                <motion.path ref={pathRef} d={geo.d} stroke="#ff4533" strokeWidth={1.5} vectorEffect="non-scaling-stroke" style={{ pathLength: progress }} />
+              <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${geo.H}`} fill="none" aria-hidden>
+                <path d={geo.d} stroke="#3a3a42" strokeWidth={1} strokeDasharray="2 7" className="track-flow" />
+                <motion.path ref={pathRef} d={geo.d} stroke="#ff4533" strokeWidth={1.5} style={{ pathLength: progress }} />
               </svg>
 
               {/* HUD playhead */}
