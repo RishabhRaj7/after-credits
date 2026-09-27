@@ -9230,5 +9230,22 @@
     "overview": "2029, a near-future Japan. The full cyborg Motoko Kusanagi envisions a task force that preemptively strikes emerging threats. She and her team are scouted by Daisuke Aramaki as Public Security Section 9, AKA the \"Shell Squad.\" An international conspiracy hints at a hacker known as The \"Puppet Master.\" What fate awaits Kusanagi? What is the hacker's endgame?",
     "episodeRuntime": 25,
     "episodes": 10
+  },
+  {
+    "id": "show-335332",
+    "type": "show",
+    "title": "Waiting Hai",
+    "year": 2026,
+    "addedAt": "2026-09-21",
+    "releaseDate": "2026-09-16",
+    "poster": "posters/show-335332.jpg",
+    "genres": [
+      "Comedy",
+      "Drama",
+      "Crime"
+    ],
+    "overview": "Sugam joins the RPF and investigates a Tatkal scam. Hamza and Mama turn booking software into a business, facing rivalry and betrayal. Sugam arrests the agents and tracks Hamza, ending the scam before his escape to Dubai.",
+    "episodes": 7,
+    "episodesEstimated": false
   }
 ]
