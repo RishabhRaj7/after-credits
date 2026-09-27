@@ -58,6 +58,9 @@ export interface FieldOptions {
   jitter?: number;
   /** Pull towards home per frame; higher forms faster. */
   spring?: number;
+  /** Never idle: points drift around their homes and a scan band sweeps
+      the shape, lighting what it passes. */
+  ambient?: boolean;
   onFirstForm?: () => void;
 }
 
@@ -101,6 +104,7 @@ export class ParticleField {
       sweep: options.sweep ?? 0.55,
       jitter: options.jitter ?? 0.25,
       spring: options.spring ?? SPRING,
+      ambient: options.ambient ?? false,
       onFirstForm: options.onFirstForm,
     };
     this.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -305,7 +309,7 @@ export class ParticleField {
     this.draw(now);
     // Keep a slow shimmer going while the pointer is over the field or
     // particles are still settling; otherwise idle at a low frame budget.
-    if (moving || this.pointer.active || this.mode === "swarm") {
+    if (moving || this.pointer.active || this.mode === "swarm" || this.opts.ambient) {
       this.raf = requestAnimationFrame(this.tick);
     } else {
       this.running = false;
@@ -358,8 +362,11 @@ export class ParticleField {
         p.vy += (dx / d) * 0.32 * 0.55 - (dy / d) * pull + Math.cos(now * 0.0012 + p.seed) * 0.05;
       } else if (t > p.delay) {
         const k = p.bound ? this.opts.spring : this.opts.spring * 0.05;
-        p.vx += (p.hx - p.x) * k;
-        p.vy += (p.hy - p.y) * k;
+        // ambient: each point orbits a little around its home, out of phase
+        const wx = this.opts.ambient && p.bound ? Math.sin(now * 0.0011 + p.seed) * 2.2 : 0;
+        const wy = this.opts.ambient && p.bound ? Math.cos(now * 0.0009 + p.seed * 1.7) * 2.2 : 0;
+        p.vx += (p.hx + wx - p.x) * k;
+        p.vy += (p.hy + wy - p.y) * k;
         if (!p.bound) {
           p.vx += Math.sin(now * 0.0006 + p.seed) * 0.02;
           p.vy += Math.cos(now * 0.0005 + p.seed) * 0.02;
@@ -397,9 +404,10 @@ export class ParticleField {
     // Batch by colour: settled ink, dust, then the lit (moving) particles.
     ctx.fillStyle = this.colors.ink;
     ctx.beginPath();
+    const scan = this.scanX(now);
     for (const p of this.particles) {
       if (!p.bound || p.accent) continue;
-      if (Math.abs(p.vx) + Math.abs(p.vy) > 1.1) continue;
+      if (Math.abs(p.vx) + Math.abs(p.vy) > 1.1 || Math.abs(p.x - scan) < 7) continue;
       ctx.rect(p.x - half, p.y - half, s, s);
     }
     ctx.fill();
@@ -416,13 +424,22 @@ export class ParticleField {
 
     ctx.fillStyle = this.colors.accent;
     ctx.beginPath();
+    const band = this.scanX(now);
     for (const p of this.particles) {
       if (!p.bound) continue;
-      const lit = Math.abs(p.vx) + Math.abs(p.vy) > 1.1;
+      const lit = Math.abs(p.vx) + Math.abs(p.vy) > 1.1 || Math.abs(p.x - band) < 7;
       if (!lit && !p.accent) continue;
       ctx.rect(p.x - half, p.y - half, s, s);
     }
     ctx.fill();
+  }
+
+  /** x of the ambient scan band (off-canvas when ambient is off) */
+  private scanX(now: number): number {
+    if (!this.opts.ambient || this.reduced) return -1e6;
+    const period = 4200;
+    const span = this.width + 240;
+    return ((now % period) / period) * span - 120;
   }
 
   // ---- input -------------------------------------------------------------

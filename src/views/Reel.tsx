@@ -110,7 +110,7 @@ function ReelRow({
               {entry.title}
             </h3>
             <div className="label mt-1 text-[9px] text-dim">
-              {order === 'watch' ? 'Logged' : 'Premiered'} {fmtDate(order === 'watch' ? entry.addedAt : entry.releaseDate)}
+              {order === 'watch' ? 'Started' : 'Premiered'} {fmtDate(order === 'watch' ? entry.addedAt : entry.releaseDate)}
               <span className="mx-1.5 text-rule">/</span>
               {entry.type === 'movie' ? fmtDur(total) : `${entry.episodes ?? '—'} ep · ≈${fmtDur(total)}`}
             </div>
@@ -260,10 +260,10 @@ function ScrubberRail({ groups, container }: { groups: YearGroup[]; container: R
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 16 }}
           transition={{ duration: 0.3 }}
-          className="fixed right-2 top-[calc(50%+50px)] z-30 hidden h-[50vh] max-h-[520px] -translate-y-1/2 flex-col items-center md:right-5 md:flex"
+          className="fixed right-1 top-[calc(50%+40px)] z-30 flex h-[56vh] max-h-[520px] -translate-y-1/2 flex-col items-center md:right-5 md:top-[calc(50%+50px)] md:h-[50vh]"
         >
-          <span className="label mb-3 text-[8px] text-dim">Seek</span>
-          <div className="relative w-16 flex-1">
+          <span className="label mb-3 hidden text-[8px] text-dim md:block">Seek</span>
+          <div className="relative w-6 flex-1 md:w-16">
             <div className="absolute inset-y-0 left-[9px] w-px bg-line" />
             <motion.div className="absolute left-[9px] h-px w-3 -translate-x-1/2 bg-blood" style={{ top: thumbTop }} />
             {groups.map((g, i) => {
@@ -275,7 +275,7 @@ function ScrubberRail({ groups, container }: { groups: YearGroup[]; container: R
                   type="button"
                   onClick={() => jump(g.year)}
                   aria-label={`Jump to ${g.year}`}
-                  className="group absolute left-0 flex -translate-y-1/2 cursor-pointer items-center gap-2.5"
+                  className="group absolute left-0 flex h-6 -translate-y-1/2 cursor-pointer items-center gap-2.5 md:h-auto"
                   style={{ top: `${fracs[i] * 100}%` }}
                 >
                   <span className="grid w-[19px] place-items-center">
@@ -284,7 +284,11 @@ function ScrubberRail({ groups, container }: { groups: YearGroup[]; container: R
                       style={{ width: size, height: size }}
                     />
                   </span>
-                  <span className={`font-tele text-[10px] tracking-[0.12em] transition-colors ${on ? 'text-bone' : 'text-dim group-hover:text-fog'}`}>
+                  <span
+                    className={`font-tele text-[10px] tracking-[0.12em] transition-colors ${on ? 'text-bone' : 'text-dim group-hover:text-fog'} ${
+                      on ? 'absolute right-full mr-1 border border-line bg-ink px-1.5 py-0.5' : 'hidden'
+                    } md:static md:mr-0 md:block md:border-0 md:bg-transparent md:p-0`}
+                  >
                     {g.year}
                   </span>
                 </button>
@@ -330,7 +334,7 @@ export default function Reel({
   return (
     <div ref={containerRef} className="relative">
       <ScrubberRail groups={groups} container={containerRef} />
-      <div className="relative mx-auto max-w-6xl px-4 pb-10 sm:px-5">
+      <div className="relative mx-auto max-w-6xl pb-10 pl-4 pr-9 sm:pl-5 md:px-5">
         {groups.map((g, vi) => {
           const prev = groups[vi - 1];
           const decadeChanged = !prev || Math.floor(prev.year / 10) !== Math.floor(g.year / 10);

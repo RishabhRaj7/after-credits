@@ -96,7 +96,7 @@ export default function SearchPalette({
               <kbd className="label shrink-0 border border-line px-1.5 py-0.5 text-[9px] text-dim">Esc</kbd>
             </div>
             <div className="label border-b border-line px-4 py-2 text-[9px] text-dim">
-              {q.trim() ? `${results.length}${results.length === 40 ? '+' : ''} matches` : 'Recently logged'}
+              {q.trim() ? `${results.length}${results.length === 40 ? '+' : ''} matches` : 'Recently started'}
             </div>
             <ul id="search-results" ref={listRef} role="listbox" className="max-h-[52vh] overflow-y-auto">
               {results.map((e, i) => (
@@ -113,7 +113,7 @@ export default function SearchPalette({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-bone">{e.title}</span>
                     <span className="label block text-[8.5px] text-dim">
-                      {e.type === 'movie' ? 'Film' : 'Series'} · {e.year ?? '—'} · logged {fmtDate(e.addedAt)}
+                      {e.type === 'movie' ? 'Film' : 'Series'} · {e.year ?? '—'} · started {fmtDate(e.addedAt)}
                     </span>
                   </span>
                   {i === cursor && <CornerDownLeft size={13} className="shrink-0 text-dim" />}

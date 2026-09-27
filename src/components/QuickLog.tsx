@@ -204,11 +204,11 @@ export default function QuickLog({ entries, onCommit }: { entries: Entry[]; onCo
               <div className="label text-[8.5px] text-blood">{pick.type === 'movie' ? 'Film' : 'Series'} · {pick.year ?? '—'}</div>
               <div className="mt-1 truncate text-[15px] font-semibold text-bone">{pick.title}</div>
               {logged(pick) && (
-                <div className="label mt-1 text-[8.5px] text-fog">Already on the log — saving updates its date.</div>
+                <div className="label mt-1 text-[8.5px] text-fog">Already on the log — saving updates its start date.</div>
               )}
             </div>
             <label className="block">
-              <span className="label mb-1 block text-[8.5px] text-dim">Watched on</span>
+              <span className="label mb-1 block text-[8.5px] text-dim">Started watching</span>
               <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} className={field} />
             </label>
             <div className="flex gap-2">

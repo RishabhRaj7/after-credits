@@ -12,7 +12,12 @@ import { dedupe, identity, type Entry } from './library';
    .env.local) or in DEFAULT_GIST_ID below. */
 
 const DEFAULT_GIST_ID = '';
-export const GIST_ID: string = (import.meta.env.VITE_LIBRARY_GIST_ID as string | undefined) || DEFAULT_GIST_ID;
+/* accepts the bare id or the whole gist URL (https://gist.github.com/<user>/<id>) */
+export function parseGistId(raw: string): string {
+  const m = raw.trim().match(/([0-9a-f]{20,})\/?(?:#.*)?$/i);
+  return m ? m[1] : '';
+}
+export const GIST_ID: string = parseGistId((import.meta.env.VITE_LIBRARY_GIST_ID as string | undefined) || DEFAULT_GIST_ID);
 export const GIST_FILE = 'after-credits-live.json';
 
 export interface Overlay {

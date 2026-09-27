@@ -116,7 +116,7 @@ export default function DetailPanel({
 
                   <dl className="mt-6 grid grid-cols-2 gap-px border border-line bg-line">
                     {[
-                      ['Logged', fmtDate(entry.addedAt)],
+                      ['Started', fmtDate(entry.addedAt)],
                       ['Premiered', fmtDate(entry.releaseDate)],
                       ['Format', factLine(entry)],
                       ['Time', `${isEstimated(entry) ? '≈ ' : ''}${fmtDur(minutes)} · ${share < 0.1 ? '<0.1' : share.toFixed(1)}% of all`],

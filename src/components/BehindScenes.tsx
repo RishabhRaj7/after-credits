@@ -88,8 +88,9 @@ export default function BehindScenes({
 
               <Note num="03" title="The dates">
                 <p>
-                  The export has no watch date, so <em className="not-italic text-bone">watched order</em> is
-                  the date a title was added. Days where {BACKLOG_MIN} or more titles were added at once are
+                  Each title's date is the day I started watching it — the date it was added to the log — so{' '}
+                  <em className="not-italic text-bone">watched order</em> is the order I started things in. Days where{' '}
+                  {BACKLOG_MIN} or more titles were added at once are
                   treated as backlog days: shown honestly as a catch-up, and left out of the almanac's timing
                   stats.
                 </p>

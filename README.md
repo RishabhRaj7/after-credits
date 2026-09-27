@@ -100,7 +100,7 @@ on any other device you want to log from.
 2. Type what you watched; pick it from the TMDB results (a title already on
    the log is marked *On the log* — logging it again updates its date rather
    than adding a duplicate).
-3. Set **Watched on** (defaults to today), tick ♥ if it's a favourite.
+3. Set **Started watching** — the day you began the film or series (defaults to today), tick ♥ if it's a favourite.
 4. **Log it**. Done — reload the page anywhere and it's there, poster,
    runtime, episodes and genres included.
 
@@ -195,7 +195,7 @@ replace `data/baked-library.json`.
 | film | runtime · 120 min when unknown |
 | series | episodes × episode length · when TMDB has no length: 24 min for animation and straight comedy, 45 min otherwise |
 
-- **Watched order** is `added_at` — the export has no watch date.
+- **Watched order** is `added_at` — the day each title was started.
 - **Backlog days** — a day with 12+ titles logged is treated as catching the
   record up, not a binge: labelled as such in the log and excluded from the
   almanac's timing stats.

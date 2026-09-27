@@ -32,7 +32,7 @@ export default function Footer({ onManage, onNotes, stored }: { onManage: () => 
 
         <div className="mt-16 grid gap-8 border-t border-line py-8 md:grid-cols-[1fr_auto] md:items-start">
           <p className="max-w-[80ch] font-tele text-[10px] leading-relaxed tracking-[0.04em] text-dim">
-            Watched order uses the date a title was added to the log, not a recorded watch date. Time
+            Watched order uses the date I started each title — when a film or series was added to the log. Time
             counts each film's runtime ({FILM_FALLBACK} min when unknown) and each series' episodes ×
             episode length — {SHORT_EPISODE} min for animation and comedy, {LONG_EPISODE} min for
             everything else, when TMDB has no figure. Series still airing, or dropped part-way, can

@@ -23,6 +23,7 @@ export default function ParticleText({
   onAdvance,
   align = 'left',
   density = 1,
+  ambient = true,
   className = '',
 }: {
   shapes: string[][];
@@ -31,6 +32,8 @@ export default function ParticleText({
   align?: 'left' | 'center';
   /** >1 packs points tighter */
   density?: number;
+  /** keep a slow drift + scan sweep going between shapes */
+  ambient?: boolean;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -58,6 +61,7 @@ export default function ParticleText({
         radius: narrow ? 60 : 110,
         intro: 'scatter',
         accentShare: 0.035,
+        ambient,
       });
     } catch {
       return;
@@ -91,7 +95,7 @@ export default function ParticleText({
       fieldRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [density]);
+  }, [density, ambient]);
 
   // re-form whenever the requested shape (or its text) changes
   const key = JSON.stringify(shapes[index]);

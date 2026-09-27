@@ -222,6 +222,7 @@ export default function App() {
           onAlmanac={goAlmanac}
           onNotes={() => setNotesOpen(true)}
           onSearch={() => setSearchOpen(true)}
+          onData={() => openData('log')}
         />
 
         <main>

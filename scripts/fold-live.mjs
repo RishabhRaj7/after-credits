@@ -21,7 +21,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BAKED = join(ROOT, 'data', 'baked-library.json');
 const POSTERS = join(ROOT, 'public', 'posters');
 const FILE = 'after-credits-live.json';
-const GIST = process.env.VITE_LIBRARY_GIST_ID || process.argv.find((a) => /^[0-9a-f]{20,}$/i.test(a));
+const RAW_GIST = process.env.VITE_LIBRARY_GIST_ID || process.argv.find((a) => /[0-9a-f]{20,}/i.test(a)) || '';
+// accepts the bare id or the whole gist URL
+const GIST = (RAW_GIST.trim().match(/([0-9a-f]{20,})\/?(?:#.*)?$/i) || [])[1];
 const TOKEN = process.env.GITHUB_TOKEN || '';
 const CLEAR = process.argv.includes('--clear');
 

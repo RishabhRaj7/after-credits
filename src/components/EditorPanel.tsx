@@ -49,7 +49,7 @@ function EditRow({
             {entry.favorite && <Heart size={9} className="shrink-0 fill-blood text-blood" />}
           </div>
           <div className="mt-0.5 font-tele text-[8.5px] tracking-[0.16em] text-dim">
-            {entry.type === 'movie' ? 'FILM' : 'SERIES'} · {entry.year ?? '—'} · LOGGED {entry.addedAt} ·{' '}
+            {entry.type === 'movie' ? 'FILM' : 'SERIES'} · {entry.year ?? '—'} · STARTED {entry.addedAt} ·{' '}
             {fmtDur(watchMinutes(entry))}
           </div>
         </div>
@@ -88,7 +88,7 @@ function EditRow({
               </select>
             </div>
             <div>
-              <label className={label}>DATE LOGGED</label>
+              <label className={label}>STARTED ON</label>
               <input
                 className={input}
                 type="date"

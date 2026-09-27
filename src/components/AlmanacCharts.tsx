@@ -8,7 +8,7 @@ const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /* ── time travel: premiere year against log date ───────────────────────────
-   Every title is a dot. The dashed diagonal is "logged the moment it came
+   Every title is a dot. The dashed diagonal is "started the moment it came
    out" — the further below it, the further back the log reached. */
 
 const W = 800;
@@ -62,7 +62,7 @@ export function TimeTravel({ points, onOpen }: { points: Almanac['timeTravel']; 
       <div className="label mb-2 h-4 truncate normal-case tracking-[0.06em] text-fog">
         {hover ? (
           <>
-            <span className="text-bone">{hover.entry.title}</span> · premiered {fmtDate(hover.entry.releaseDate)} · logged {fmtDate(hover.entry.addedAt)}
+            <span className="text-bone">{hover.entry.title}</span> · premiered {fmtDate(hover.entry.releaseDate)} · started {fmtDate(hover.entry.addedAt)}
           </>
         ) : (
           'Hover a dot · click to open'
@@ -76,7 +76,7 @@ export function TimeTravel({ points, onOpen }: { points: Almanac['timeTravel']; 
         onPointerLeave={() => setHover(null)}
         onClick={() => hover && onOpen(hover.entry)}
         role="img"
-        aria-label="Premiere year of each title plotted against the date it was logged"
+        aria-label="Premiere year of each title plotted against the date I started it"
       >
         {yTicks.map((v) => (
           <g key={v}>
@@ -102,7 +102,7 @@ export function TimeTravel({ points, onOpen }: { points: Almanac['timeTravel']; 
           transition={{ duration: 1.2, ease: EASE }}
         />
         <text x={diag.x2 - 4} y={diag.y2 + 14} textAnchor="end" className="font-tele" style={{ fontSize: 10, fill: 'var(--color-fog)' }}>
-          logged on release
+          started on release day
         </text>
         <motion.g initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.3 }}>
           {points.map((p) => (

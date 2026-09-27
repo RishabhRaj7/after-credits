@@ -31,7 +31,7 @@ export default function Hero({ entries, stats, genres, onEnterLog, onAlmanac }: 
     return [
       { lines: [`${stats.days} DAYS`], caption: 'of runtime, laid end to end' },
       { lines: [`${fmtInt(stats.hours)} HOURS`], caption: 'every film and every episode, counted once' },
-      { lines: [`${stats.titles} TITLES`], caption: `logged ${fmtMonth(stats.from.getTime())} — ${fmtMonth(stats.to.getTime())}` },
+      { lines: [`${stats.titles} TITLES`], caption: `started between ${fmtMonth(stats.from.getTime())} and ${fmtMonth(stats.to.getTime())}` },
       { lines: [`${stats.films} FILMS`], caption: `averaging ${fmtDur(avgFilm)} each` },
       { lines: [`${stats.series} SERIES`], caption: `${fmtInt(episodes)} episodes between them` },
       { lines: [`${y0}—${y1}`], caption: `${y1 - y0 + 1} years on the log` },

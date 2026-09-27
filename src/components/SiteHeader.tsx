@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Search, X } from 'lucide-react';
+import { Menu, Plus, Search, X } from 'lucide-react';
 import Logo from './Logo';
 
 interface Props {
@@ -9,9 +9,10 @@ interface Props {
   onAlmanac: () => void;
   onNotes: () => void;
   onSearch: () => void;
+  onData: () => void;
 }
 
-export default function SiteHeader({ count, onTop, onLog, onAlmanac, onNotes, onSearch }: Props) {
+export default function SiteHeader({ count, onTop, onLog, onAlmanac, onNotes, onSearch, onData }: Props) {
   const [open, setOpen] = useState(false);
   const links: Array<[string, () => void]> = [
     ['Almanac', onAlmanac],
@@ -38,7 +39,15 @@ export default function SiteHeader({ count, onTop, onLog, onAlmanac, onNotes, on
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <span className="label hidden text-[9.5px] text-dim lg:inline">{count} titles on record</span>
+          <span className="label hidden text-[9.5px] text-dim xl:inline">{count} titles on record</span>
+          <button
+            type="button"
+            onClick={onData}
+            className="label flex h-9 cursor-pointer items-center gap-2 border border-line px-3 text-[9.5px] text-fog transition-colors hover:border-blood hover:text-bone"
+          >
+            <Plus size={13} className="text-blood" />
+            <span className="hidden sm:inline">Log a title</span>
+          </button>
           <button
             type="button"
             onClick={onSearch}
@@ -67,6 +76,10 @@ export default function SiteHeader({ count, onTop, onLog, onAlmanac, onNotes, on
               {label}
             </button>
           ))}
+          <button type="button" onClick={() => go(onData)} className="label flex h-12 w-full cursor-pointer items-center gap-3 text-left text-bone">
+            <span className="text-blood">04</span>
+            Log a title · manage data
+          </button>
         </nav>
       )}
     </header>

@@ -298,21 +298,20 @@ function FanNode({
               className="absolute"
               style={{ left: -pw / 2, top: -ph / 2, width: pw, height: ph, zIndex: i + 1 }}
               whileHover={{ zIndex: 60 }}
-              initial={{ x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0, clipPath: 'inset(100% 0 0 0)' }}
-              animate={
-                inView
-                  ? { x: k * step, y: k * k * 3, rotate: k * 6.5, scale: 1, opacity: 1, clipPath: 'inset(0% 0 0 0)' }
-                  : { x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0, clipPath: 'inset(100% 0 0 0)' }
-              }
-              transition={{
-                type: 'spring',
-                stiffness: 170,
-                damping: 20,
-                delay: 0.15 + 0.07 * i,
-                clipPath: { duration: 0.5, delay: 0.15 + 0.07 * i, ease: EASE },
-              }}
+              initial={{ x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0 }}
+              animate={inView ? { x: k * step, y: k * k * 3, rotate: k * 6.5, scale: 1, opacity: 1 } : { x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 170, damping: 20, delay: 0.15 + 0.07 * i }}
             >
               <HudPoster entry={e} onSelect={onSelect} scale={1.7} />
+              {/* scan reveal: an ink cover that wipes upward — nothing is clipped afterwards,
+                  so the hover zoom shows the whole poster */}
+              <motion.span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-[3] origin-top bg-ink"
+                initial={{ scaleY: 1 }}
+                animate={{ scaleY: inView ? 0 : 1 }}
+                transition={{ duration: 0.5, delay: 0.2 + 0.07 * i, ease: EASE }}
+              />
             </motion.div>
           );
         })}

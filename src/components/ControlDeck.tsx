@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import type { DecadeStat, Dir, Order, TypeFilter, YearGroup } from '../data/library';
 
 export type ViewId = 'burst' | 'reel';
@@ -55,15 +56,18 @@ function Seg<T extends string>({
   value,
   options,
   onChange,
+  stacked = false,
 }: {
   label: string;
   value: T;
   options: Array<[T, string]>;
   onChange: (v: T) => void;
+  /** full-width row with its label above (the phone filter panel) */
+  stacked?: boolean;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-2.5" role="group" aria-label={label}>
-      <span className="label hidden text-[9px] text-dim xl:inline">{label}</span>
+    <div className={stacked ? 'grid gap-1.5' : 'flex shrink-0 items-center gap-2.5'} role="group" aria-label={label}>
+      <span className={`label text-[9px] text-dim ${stacked ? '' : 'hidden xl:inline'}`}>{label}</span>
       <div className="flex border border-line">
         {options.map(([k, text], i) => (
           <button
@@ -71,7 +75,7 @@ function Seg<T extends string>({
             type="button"
             aria-pressed={value === k}
             onClick={() => onChange(k)}
-            className={`label h-8 cursor-pointer px-3 text-[9.5px] transition-colors ${i ? 'border-l border-line' : ''} ${
+            className={`label cursor-pointer text-[9.5px] transition-colors ${stacked ? 'h-10 flex-1' : 'h-8 px-3'} ${i ? 'border-l border-line' : ''} ${
               value === k ? 'bg-bone text-ink' : 'text-fog hover:bg-smoke hover:text-bone'
             }`}
           >
@@ -104,14 +108,107 @@ interface DeckProps {
   progress: MotionValue<number>;
 }
 
+const chip = 'label shrink-0 cursor-pointer border px-2.5 text-[9.5px] tracking-[0.1em] transition-colors';
+
+function YearChips(p: DeckProps & { wrap?: boolean }) {
+  const h = p.wrap ? 'h-9' : 'h-7';
+  return (
+    <>
+      {p.decades.map((d) => {
+        const allIn = d.years.every((y) => !p.hidden.has(y));
+        return (
+          <button
+            key={d.decade}
+            type="button"
+            aria-pressed={allIn}
+            onClick={() => p.onToggleDecade(d.decade)}
+            className={`${chip} ${h} ${allIn ? 'border-rule text-bone' : 'border-line text-dim hover:text-fog'}`}
+          >
+            {d.decade}s
+          </button>
+        );
+      })}
+      {!p.wrap && <span className="mx-1.5 h-4 w-px shrink-0 bg-line" />}
+      {p.groups.map((g) => {
+        const off = p.hidden.has(g.year);
+        return (
+          <button
+            key={g.year}
+            type="button"
+            aria-pressed={!off}
+            title={`${g.items.length} titles`}
+            onClick={() => p.onToggleYear(g.year)}
+            className={`${chip} ${h} ${off ? 'border-line/50 text-dim line-through decoration-dim' : 'border-line text-bone hover:border-rule'}`}
+          >
+            {g.year} <span className={off ? 'text-dim' : 'text-blood'}>{g.items.length}</span>
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
 export default function ControlDeck(p: DeckProps) {
+  const [open, setOpen] = useState(false);
   const visible = p.groups.reduce((s, g) => s + (p.hidden.has(g.year) ? 0 : g.items.length), 0);
   const total = p.groups.reduce((s, g) => s + g.items.length, 0);
-  const chip = 'label h-7 shrink-0 cursor-pointer border px-2.5 text-[9.5px] tracking-[0.1em] transition-colors';
+  const active =
+    (p.order !== 'watch' ? 1 : 0) + (p.dir !== 'asc' ? 1 : 0) + (p.typeFilter !== 'all' ? 1 : 0) + (p.hidden.size ? 1 : 0);
 
   return (
     <div className="sticky top-0 z-40 border-b border-line bg-ink">
-      <div className="mx-auto max-w-[1600px] px-4 sm:px-8">
+      {/* ── phones: compact bar, filters stacked in a panel ── */}
+      <div className="px-4 md:hidden">
+        <div className="flex h-14 items-center gap-2">
+          <Seg label="View" value={p.view} onChange={p.onSwitch} options={[['burst', 'Burst'], ['reel', 'Reel']]} />
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls="deck-filters"
+            className={`label ml-auto flex h-8 cursor-pointer items-center gap-2 border px-3 text-[9.5px] ${open ? 'border-bone text-bone' : 'border-line text-fog'}`}
+          >
+            <SlidersHorizontal size={12} /> Filters
+            {active > 0 && <span className="grid h-4 min-w-4 place-items-center bg-blood px-1 text-[9px] text-white">{active}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={p.onSearch}
+            aria-label="Find a title"
+            className="grid h-8 w-8 cursor-pointer place-items-center border border-line text-fog"
+          >
+            <Search size={13} />
+          </button>
+        </div>
+        {open && (
+          <div id="deck-filters" className="max-h-[70vh] space-y-4 overflow-y-auto overscroll-contain border-t border-line py-4">
+            <Seg stacked label="Sequence" value={p.order} onChange={p.onOrder} options={[['watch', 'Watched'], ['release', 'Released']]} />
+            <Seg stacked label="Direction" value={p.dir} onChange={p.onDir} options={[['asc', 'Oldest first'], ['desc', 'Newest first']]} />
+            <Seg stacked label="Type" value={p.typeFilter} onChange={p.onTypeFilter} options={[['all', 'All'], ['movie', 'Films'], ['show', 'Series']]} />
+            <div className="grid gap-1.5">
+              <span className="label text-[9px] text-dim">
+                Years · showing <span className="text-bone">{visible}</span>/{total}
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <YearChips {...p} wrap />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {p.hidden.size > 0 && (
+                <button type="button" onClick={p.onAll} className="label h-10 flex-1 cursor-pointer border border-blood/60 text-bone">
+                  Reset years
+                </button>
+              )}
+              <button type="button" onClick={() => setOpen(false)} className="label h-10 flex-1 cursor-pointer bg-bone text-ink">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── tablets and up: two strips ── */}
+      <div className="mx-auto hidden max-w-[1600px] px-4 sm:px-8 md:block">
         <div className="strip flex h-14 items-center gap-3 sm:gap-5">
           <Seg label="View" value={p.view} onChange={p.onSwitch} options={[['burst', 'Burst'], ['reel', 'Reel']]} />
           <Seg label="Sequence" value={p.order} onChange={p.onOrder} options={[['watch', 'Watched'], ['release', 'Released']]} />
@@ -123,43 +220,14 @@ export default function ControlDeck(p: DeckProps) {
             className="label ml-auto flex h-8 shrink-0 cursor-pointer items-center gap-2 border border-line px-3 text-[9.5px] text-fog transition-colors hover:border-rule hover:text-bone"
           >
             <Search size={12} /> Find a title
-            <kbd className="hidden border border-line px-1 font-tele text-[9px] text-dim md:inline">/</kbd>
+            <kbd className="border border-line px-1 font-tele text-[9px] text-dim">/</kbd>
           </button>
         </div>
 
         <div className="strip -mx-4 flex h-11 items-center gap-1.5 border-t border-line px-4 sm:-mx-8 sm:px-8">
-          {p.decades.map((d) => {
-            const allIn = d.years.every((y) => !p.hidden.has(y));
-            return (
-              <button
-                key={d.decade}
-                type="button"
-                aria-pressed={allIn}
-                onClick={() => p.onToggleDecade(d.decade)}
-                className={`${chip} ${allIn ? 'border-rule text-bone' : 'border-line text-dim hover:text-fog'}`}
-              >
-                {d.decade}s
-              </button>
-            );
-          })}
-          <span className="mx-1.5 h-4 w-px shrink-0 bg-line" />
-          {p.groups.map((g) => {
-            const off = p.hidden.has(g.year);
-            return (
-              <button
-                key={g.year}
-                type="button"
-                aria-pressed={!off}
-                title={`${g.items.length} titles`}
-                onClick={() => p.onToggleYear(g.year)}
-                className={`${chip} ${off ? 'border-transparent text-dim line-through decoration-dim' : 'border-line text-bone hover:border-rule'}`}
-              >
-                {g.year} <span className={off ? 'text-dim' : 'text-blood'}>{g.items.length}</span>
-              </button>
-            );
-          })}
+          <YearChips {...p} />
           {p.hidden.size > 0 && (
-            <button type="button" onClick={p.onAll} className={`${chip} border-blood/60 text-bone hover:bg-blood hover:text-white`}>
+            <button type="button" onClick={p.onAll} className={`${chip} h-7 border-blood/60 text-bone hover:bg-blood hover:text-white`}>
               Reset
             </button>
           )}

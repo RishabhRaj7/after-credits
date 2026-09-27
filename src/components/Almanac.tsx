@@ -116,16 +116,15 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
             </h2>
           </div>
           <p className="max-w-[52ch] text-[15px] leading-relaxed text-fog">
-            Patterns in {fmtInt(entries.length)} entries. Log dates are when a title was added, not a
-            recorded watch — so {a.backlogDays.length ? `${a.backlogDays.length} backlog days` : 'bulk imports'}, when
+            Patterns in {fmtInt(entries.length)} entries. Dates are the day I started each title — so {a.backlogDays.length ? `${a.backlogDays.length} backlog days` : 'bulk imports'}, when
             a dozen or more titles were logged at once, are set aside wherever timing matters.
           </p>
         </header>
 
         <div className="mt-12 grid grid-cols-1 gap-px border border-line bg-line md:grid-cols-6 lg:grid-cols-12">
-          <Cell label="Titles logged per year" className="md:col-span-6 lg:col-span-7">
+          <Cell label="Titles started per year" className="md:col-span-6 lg:col-span-7">
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
-              <span className="label flex items-center gap-2 text-[9px] text-fog"><span className="h-2 w-2 bg-bone/80" /> logged</span>
+              <span className="label flex items-center gap-2 text-[9px] text-fog"><span className="h-2 w-2 bg-bone/80" /> started</span>
               <span className="label flex items-center gap-2 text-[9px] text-fog"><span className="h-2 w-2 bg-rule" /> backlog day</span>
               {biggest && (
                 <span className="label text-[9px] text-dim">
@@ -200,14 +199,14 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
             />
           </Cell>
 
-          <Cell label="Premiere → log" className="md:col-span-3 lg:col-span-4">
+          <Cell label="Premiere → start" className="md:col-span-3 lg:col-span-4">
             <div className="mt-3 flex items-baseline gap-2">
               <span className="font-display text-6xl font-bold leading-none text-bone">{a.medianLagYears.toFixed(1)}</span>
               <span className="label text-fog">years, median</span>
             </div>
             <p className="mt-auto pt-6 text-sm leading-relaxed text-fog">
-              The typical gap between a title's premiere and its place in the log.{' '}
-              <span className="text-bone">{a.freshCount}</span> were logged within 30 days of release.
+              The typical gap between a title's premiere and the day I started it.{' '}
+              <span className="text-bone">{a.freshCount}</span> were started within 30 days of release.
             </p>
           </Cell>
 
