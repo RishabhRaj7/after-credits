@@ -15,7 +15,7 @@ import Reel from './views/Reel';
 import {
   LIBRARY,
   decadeStats,
-  genreCounts,
+  genreStats,
   groupByYear,
   prepareLibrary,
   sortedEntries,
@@ -74,7 +74,7 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false);
 
   const stats = useMemo(() => statsFor(library), [library]);
-  const genres = useMemo(() => genreCounts(library), [library]);
+  const genres = useMemo(() => genreStats(library), [library]);
 
   /* one filter pipeline, shared by both projections */
   const typed = useMemo(() => (typeFilter === 'all' ? library : library.filter((e) => e.type === typeFilter)), [library, typeFilter]);

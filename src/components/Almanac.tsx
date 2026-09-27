@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Poster } from './Poster';
+import { Drift, Heatmap, TimeTravel } from './AlmanacCharts';
 import { buildAlmanac, type Bar } from '../data/almanac';
 import { factLine, fmtDate, fmtDur, fmtInt, watchMinutes, type Entry } from '../data/library';
 
@@ -161,6 +162,34 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
             <p className="label mt-5 normal-case tracking-[0.04em] text-dim">By premiere date. Mostly the new stuff.</p>
           </Cell>
 
+          <Cell label="Time travel · premiere year vs log date" className="md:col-span-6 lg:col-span-8">
+            <TimeTravel points={a.timeTravel} onOpen={onOpen} />
+          </Cell>
+
+          <Cell label="Streaks & droughts" className="md:col-span-6 lg:col-span-4">
+            <dl className="mt-auto divide-y divide-line pt-4">
+              {[
+                [`${a.streak.days} days`, 'Longest logging streak', `${fmtDate(a.streak.from)} → ${fmtDate(a.streak.to)}`],
+                [`${a.drought.days} days`, 'Longest drought', `${fmtDate(a.drought.from)} → ${fmtDate(a.drought.to)}`],
+                [`${a.activeDays}`, 'Days with a log', `median ${a.medianGapDays} days between them`],
+              ].map(([v, k, note]) => (
+                <div key={k} className="py-4 first:pt-0 last:pb-0">
+                  <dt className="label text-[9px] text-dim">{k}</dt>
+                  <dd className="mt-1 font-display text-4xl font-bold leading-none text-bone">{v}</dd>
+                  <dd className="label mt-1.5 text-[9px] normal-case tracking-[0.04em] text-fog">{note}</dd>
+                </div>
+              ))}
+            </dl>
+          </Cell>
+
+          <Cell label="Rhythm · titles per month" className="md:col-span-6 lg:col-span-7">
+            <Heatmap data={a.heatmap} />
+          </Cell>
+
+          <Cell label="Genre drift · top five" className="md:col-span-6 lg:col-span-5">
+            <Drift drift={a.drift} />
+          </Cell>
+
           <Cell label="Screening day" className="md:col-span-3 lg:col-span-4">
             <div className="mt-3 font-display text-4xl font-bold uppercase leading-none text-bone">{a.topWeekday}</div>
             <Columns
@@ -205,6 +234,27 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
             </div>
           </Cell>
 
+          <Cell label="Film runtimes" className="md:col-span-6 lg:col-span-6">
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="font-display text-5xl font-bold leading-none text-bone">{fmtDur(a.medianRuntime)}</span>
+              <span className="label text-fog">median film</span>
+            </div>
+            <Columns
+              bars={a.runtimes}
+              highlight={a.medianRuntimeBin}
+              describe={(b) => `${b.note} — ${b.value} films`}
+              height={110}
+            />
+          </Cell>
+
+          <Cell label="Episodes on record" className="md:col-span-3 lg:col-span-3">
+            <div className="mt-3 font-display text-6xl font-bold leading-none text-bone">{fmtInt(a.episodes)}</div>
+            <p className="mt-auto pt-6 text-sm leading-relaxed text-fog">
+              Across {entries.filter((e) => e.type === 'show').length} series. The median series runs{' '}
+              <span className="text-bone">{a.medianEpisodes} episodes</span>.
+            </p>
+          </Cell>
+
           <Cell label="Longest commitment" className="md:col-span-3 lg:col-span-3">
             <EntryFact
               entry={a.longestSeries}
@@ -213,7 +263,7 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
               onOpen={onOpen}
             />
           </Cell>
-          <Cell label="Longest film" className="md:col-span-3 lg:col-span-3">
+          <Cell label="Longest film" className="md:col-span-2 lg:col-span-4">
             <EntryFact
               entry={a.longestFilm}
               value={a.longestFilm ? fmtDur(watchMinutes(a.longestFilm)) : ''}
@@ -221,10 +271,10 @@ export default function Almanac({ entries, onOpen }: { entries: Entry[]; onOpen:
               onOpen={onOpen}
             />
           </Cell>
-          <Cell label="Oldest on the log" className="md:col-span-3 lg:col-span-3">
+          <Cell label="Oldest on the log" className="md:col-span-2 lg:col-span-4">
             <EntryFact entry={a.oldest} value={a.oldest?.releaseDate?.slice(0, 4) ?? ''} note={`Premiered ${fmtDate(a.oldest?.releaseDate)}`} onOpen={onOpen} />
           </Cell>
-          <Cell label="Newest on the log" className="md:col-span-3 lg:col-span-3">
+          <Cell label="Newest on the log" className="md:col-span-2 lg:col-span-4">
             <EntryFact entry={a.newest} value={a.newest?.releaseDate?.slice(0, 4) ?? ''} note={`Premiered ${fmtDate(a.newest?.releaseDate)}`} onOpen={onOpen} />
           </Cell>
         </div>

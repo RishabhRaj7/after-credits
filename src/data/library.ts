@@ -50,9 +50,12 @@ export interface DecadeStat {
   years: number[];
 }
 
-export interface GenreCount {
+export interface GenreStat {
   name: string;
   count: number;
+  films: number;
+  series: number;
+  minutes: number;
 }
 
 /* ── genres ────────────────────────────────────────────────────────────────
@@ -200,22 +203,6 @@ export function clusterize(items: Entry[], order: Order): Cluster[] {
   return clusters;
 }
 
-/* the caption depends on what the dates mean: log dates read as nights in,
-   premiere dates read as release windows */
-export function headlineFor(c: Cluster, order: Order): string {
-  if (order === 'release') {
-    if (c.size === 1) return 'A premiere with the week to itself.';
-    if (c.size === 2) return 'Two openings, same week.';
-    return c.size >= 8 ? 'A crowded season of premieres.' : 'A crowded release window.';
-  }
-  switch (c.kind) {
-    case 'single': return 'Some stories deserve their own night.';
-    case 'run': return 'Two in a row. Obviously.';
-    case 'backlog': return 'The backlog, logged in one sitting.';
-    default: return c.size === 3 ? 'Three deep into the night.' : 'Just one more. Then another.';
-  }
-}
-
 export function intensityFor(c: Cluster, order: Order): { bars: number; label: string } | null {
   if (order !== 'watch' || c.kind !== 'binge') return null;
   if (c.size >= 6) return { bars: 5, label: 'Full binge mode' };
@@ -285,13 +272,20 @@ export function statsFor(items: Entry[]): LibraryStats {
   };
 }
 
-/* genre tally for the dial — counts titles, not appearances */
-export function genreCounts(entries: Entry[]): GenreCount[] {
-  const map = new Map<string, number>();
-  for (const e of entries) for (const g of new Set(e.genres ?? [])) map.set(g, (map.get(g) ?? 0) + 1);
-  return [...map.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+/* per-genre tally for the dial — counts titles, not appearances */
+export function genreStats(entries: Entry[]): GenreStat[] {
+  const map = new Map<string, GenreStat>();
+  for (const e of entries) {
+    for (const g of new Set(e.genres ?? [])) {
+      const s = map.get(g) ?? { name: g, count: 0, films: 0, series: 0, minutes: 0 };
+      s.count += 1;
+      if (e.type === 'movie') s.films += 1;
+      else s.series += 1;
+      s.minutes += watchMinutes(e);
+      map.set(g, s);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 /* TMDB page for a baked or imported entry ("movie-603" / "show-1399") */

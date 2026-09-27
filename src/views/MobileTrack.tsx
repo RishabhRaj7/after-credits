@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Poster } from '../components/Poster';
-import { fmtDur, fmtMonth, headlineFor, intensityFor, yearOf, type Cluster, type Entry, type Order } from '../data/library';
+import { fmtDur, fmtMonth, intensityFor, yearOf, type Cluster, type Entry, type Order } from '../data/library';
+import { quipFor } from '../data/quips';
 
 /* The narrow-screen track: natural document flow keeps captions clear of the
    art, and each cluster is a native horizontal rail so every poster is reachable. */
@@ -15,6 +16,7 @@ export default function MobileTrack({ clusters, order, onSelect }: {
         const year = yearOf(c.items[0], order);
         const previousYear = index ? yearOf(clusters[index - 1].items[0], order) : null;
         const intensity = intensityFor(c, order);
+        const quip = quipFor(c, order);
         return (
           <Fragment key={c.key}>
             {year !== previousYear && (
@@ -25,10 +27,8 @@ export default function MobileTrack({ clusters, order, onSelect }: {
             <section className="relative ml-1.5 min-w-0 border-l border-line pb-10 pl-5" aria-label={`${fmtMonth(c.startTs)}, ${c.size} titles`}>
               <span className="absolute -left-[5px] top-1 h-[9px] w-[9px] rounded-full border border-blood bg-ink" />
               <div className="label text-fog">{fmtMonth(c.startTs)}</div>
-              <h3 className="mt-2 text-xl font-semibold leading-tight tracking-tight">{headlineFor(c, order)}</h3>
-              {order === 'watch' && c.kind === 'backlog' && (
-                <p className="mt-2 text-sm leading-relaxed text-fog">Mostly logged on a single day — catching the record up, not one sitting.</p>
-              )}
+              <h3 className="mt-2 text-xl font-semibold leading-tight tracking-tight">{quip.headline}</h3>
+              {quip.aside && <p className="mt-2 text-sm leading-relaxed text-fog">{quip.aside}</p>}
               <div className="label mt-2 flex flex-wrap items-center gap-2 text-[9px] text-dim">
                 <span>{c.size} {c.size === 1 ? 'title' : 'titles'} · {fmtDur(c.minutes)}</span>
                 {intensity && <span className="text-blood">/ {intensity.label}</span>}

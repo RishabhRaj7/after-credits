@@ -3,12 +3,12 @@ import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUpRight } from 'lucide-react';
 import ParticleText from './ParticleText';
 import GenreDial from './GenreDial';
-import { fmtDur, fmtInt, fmtMonth, type Entry, type GenreCount, type LibraryStats } from '../data/library';
+import { fmtDur, fmtInt, fmtMonth, type Entry, type GenreStat, type LibraryStats } from '../data/library';
 
 interface Props {
   entries: Entry[];
   stats: LibraryStats;
-  genres: GenreCount[];
+  genres: GenreStat[];
   onEnterLog: () => void;
   onAlmanac: () => void;
 }
@@ -58,22 +58,8 @@ export default function Hero({ entries, stats, genres, onEnterLog, onAlmanac }: 
   return (
     <section id="top" className="relative border-b border-line">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-8">
-        {/* slate */}
-        <motion.div
-          {...rise(0)}
-          className="label flex items-center justify-between gap-4 border-b border-line py-3 text-dim"
-        >
-          <span className="text-fog">A personal screening log</span>
-          <span className="hidden sm:block">
-            {stats.from.getFullYear()} — {stats.to.getFullYear()}
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="blink inline-block h-1.5 w-1.5 bg-blood" />
-            Log 001
-          </span>
-        </motion.div>
 
-        <div className="grid gap-12 pb-16 pt-10 lg:grid-cols-[1.12fr_0.88fr] lg:items-center lg:gap-10 lg:pb-20 lg:pt-14">
+        <div className="grid gap-12 pb-16 pt-12 lg:grid-cols-[1.12fr_0.88fr] lg:items-center lg:gap-10 lg:pb-20 lg:pt-16">
           <div className="min-w-0">
             <h1 className="sr-only">
               After Credits — {stats.days} days of film and television: {stats.titles} titles, {stats.films} films and{' '}

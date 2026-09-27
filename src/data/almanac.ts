@@ -27,7 +27,26 @@ export interface Almanac {
   newest: Entry | null;
   filmMinutes: number;
   seriesMinutes: number;
+  timeTravel: { entry: Entry; logTs: number; release: number }[];
+  heatmap: { years: number[]; cells: number[][]; max: number };
+  streak: { days: number; from: string; to: string };
+  drought: { days: number; from: string; to: string };
+  activeDays: number;
+  medianGapDays: number;
+  drift: { name: string; shares: { year: number; share: number }[]; overall: number }[];
+  runtimes: Bar[];
+  medianRuntime: number;
+  medianRuntimeBin: string;
+  episodes: number;
+  medianEpisodes: number;
 }
+
+const DAY = 86400000;
+const median = (xs: number[]) => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -92,6 +111,63 @@ export function buildAlmanac(entries: Entry[]): Almanac {
   const series = entries.filter((e) => e.type === 'show');
   const dated = entries.filter((e) => e.releaseDate).sort((a, b) => a.releaseDate!.localeCompare(b.releaseDate!));
 
+  /* premiere vs log: how far back each title reached */
+  const timeTravel = entries
+    .filter((e) => e.releaseDate)
+    .map((e) => {
+      const r = new Date(dayTs(e.releaseDate!));
+      return { entry: e, logTs: dayTs(e.addedAt), release: r.getFullYear() + r.getMonth() / 12 };
+    });
+
+  /* month × year, backlog days left out */
+  const yearList = [...years.keys()].sort((a, b) => a - b);
+  const cells = yearList.map(() => Array(12).fill(0) as number[]);
+  for (const e of entries) {
+    if (backlog.has(e.addedAt)) continue;
+    const d = new Date(dayTs(e.addedAt));
+    cells[yearList.indexOf(d.getFullYear())][d.getMonth()] += 1;
+  }
+
+  /* streaks and droughts across distinct log days */
+  const logDays = [...perDay.keys()].sort();
+  const dayNums = logDays.map((d) => Math.round(dayTs(d) / DAY));
+  let streak = { days: 1, from: logDays[0] ?? '', to: logDays[0] ?? '' };
+  let drought = { days: 0, from: '', to: '' };
+  let runStart = 0;
+  const gaps: number[] = [];
+  for (let i = 1; i < dayNums.length; i++) {
+    const gap = dayNums[i] - dayNums[i - 1];
+    gaps.push(gap);
+    if (gap !== 1) runStart = i;
+    if (i - runStart + 1 > streak.days) streak = { days: i - runStart + 1, from: logDays[runStart], to: logDays[i] };
+    if (gap > drought.days) drought = { days: gap, from: logDays[i - 1], to: logDays[i] };
+  }
+
+  /* genre drift: the top five genres' share of each year's titles */
+  const tally = new Map<string, number>();
+  for (const e of entries) for (const g of e.genres ?? []) tally.set(g, (tally.get(g) ?? 0) + 1);
+  const top5 = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([g]) => g);
+  const drift = top5.map((name) => ({
+    name,
+    overall: (tally.get(name) ?? 0) / Math.max(1, entries.length),
+    shares: yearList.map((y) => {
+      const inYear = entries.filter((e) => new Date(dayTs(e.addedAt)).getFullYear() === y);
+      return { year: y, share: inYear.length ? inYear.filter((e) => (e.genres ?? []).includes(name)).length / inYear.length : 0 };
+    }),
+  }));
+
+  /* film runtimes in 15-minute bins */
+  const rts = films.map((e) => e.runtimeMinutes).filter((m): m is number => !!m);
+  const edges = [0, 90, 105, 120, 135, 150, 165, Infinity];
+  const runtimes = edges.slice(0, -1).map((lo, i) => {
+    const hi = edges[i + 1];
+    const label = lo === 0 ? '<90' : hi === Infinity ? `${lo}+` : `${lo}`;
+    return { key: label, label, value: rts.filter((m) => m >= lo && m < hi).length, note: lo === 0 ? 'under 90 min' : hi === Infinity ? `${lo} min and over` : `${lo}–${hi} min` };
+  });
+  const medRt = median(rts);
+  const medIdx = edges.findIndex((lo, i) => medRt >= lo && medRt < edges[i + 1]);
+  const eps = series.map((e) => e.episodes ?? 0).filter(Boolean);
+
   return {
     perYear,
     backlogDays,
@@ -106,5 +182,17 @@ export function buildAlmanac(entries: Entry[]): Almanac {
     newest: dated[dated.length - 1] ?? null,
     filmMinutes: totalMinutes(films),
     seriesMinutes: totalMinutes(series),
+    timeTravel,
+    heatmap: { years: yearList, cells, max: Math.max(1, ...cells.flat()) },
+    streak,
+    drought,
+    activeDays: logDays.length,
+    medianGapDays: median(gaps),
+    drift,
+    runtimes,
+    medianRuntime: medRt,
+    medianRuntimeBin: runtimes[Math.max(0, medIdx)]?.key ?? '',
+    episodes: eps.reduce((a, b) => a + b, 0),
+    medianEpisodes: median(eps),
   };
 }
