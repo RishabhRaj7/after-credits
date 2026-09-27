@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion, useScroll } from 'framer-motion';
 import SiteHeader from './components/SiteHeader';
 import Hero from './components/Hero';
 import Almanac from './components/Almanac';
 import ControlDeck, { ProjectionTabs, VIEW_META, type ViewId } from './components/ControlDeck';
-import CutTo, { CUT_MS, SWAP_MS } from './components/CutTo';
+import CutTo, { EXIT_MS, FORMED_MS, type Cut } from './components/CutTo';
 import DetailPanel from './components/DetailPanel';
 import SearchPalette from './components/SearchPalette';
 import Footer from './components/Footer';
@@ -78,7 +78,7 @@ export default function App() {
   useEffect(() => setHidden(new Set()), [order]); // years mean something else in the other sequence
 
   const [selected, setSelected] = useState<Entry | null>(null);
-  const [cut, setCut] = useState<string | null>(null);
+  const [cut, setCut] = useState<Cut | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<DataTab>('log');
@@ -131,16 +131,32 @@ export default function App() {
   const onSwitch = useCallback(
     (v: ViewId) => {
       if (v === view || cut) return;
-      setCut(VIEW_META[v].label);
+      setCut({ label: VIEW_META[v].label, phase: 'in' });
+      // swap only once the name has formed, and as a transition so the swarm
+      // keeps animating while the new view builds
       window.setTimeout(() => {
-        setView(v);
         const el = deckAnchorRef.current;
         if (el && el.getBoundingClientRect().top < 0) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY });
-      }, SWAP_MS);
-      window.setTimeout(() => setCut(null), CUT_MS);
+        startTransition(() => setView(v));
+      }, FORMED_MS);
+      // failsafe: never leave the page covered if the reveal signal is missed
+      window.setTimeout(() => setCut((c) => (c && c.phase === 'in' ? { ...c, phase: 'out' } : c)), FORMED_MS + 2500);
     },
     [view, cut],
   );
+
+  /* called by the freshly mounted view: let it paint, then detonate and open up */
+  const cutRef = useRef(cut);
+  cutRef.current = cut;
+  const onViewShown = useCallback(() => {
+    if (cutRef.current?.phase !== 'in') return;
+    requestAnimationFrame(() => requestAnimationFrame(() => setCut((c) => (c ? { ...c, phase: 'out' } : c))));
+  }, []);
+  useEffect(() => {
+    if (cut?.phase !== 'out') return;
+    const t = window.setTimeout(() => setCut(null), EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [cut?.phase]);
 
   /* "/" or ⌘K opens search from anywhere that isn't a text field */
   useEffect(() => {
@@ -197,7 +213,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative min-h-screen bg-ink text-bone">
-        <CutTo label={cut} />
+        <CutTo cut={cut} />
 
         <SiteHeader
           count={library.length}
@@ -248,8 +264,9 @@ export default function App() {
                 key={`${view}:${order}`}
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
+                exit={{ opacity: 0, transition: { duration: cut ? 0 : 0.2 } }}
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                onAnimationStart={onViewShown}
                 className="pt-10"
               >
                 {visible.length === 0 ? (

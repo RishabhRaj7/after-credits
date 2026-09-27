@@ -53,6 +53,11 @@ export interface FieldOptions {
   intro?: "scatter" | "line" | "none";
   /** Share of particles that are always accent-coloured. */
   accentShare?: number;
+  /** Seconds the intro staggers across the shape, plus random jitter. */
+  sweep?: number;
+  jitter?: number;
+  /** Pull towards home per frame; higher forms faster. */
+  spring?: number;
   onFirstForm?: () => void;
 }
 
@@ -93,6 +98,9 @@ export class ParticleField {
       radius: options.radius ?? 90,
       intro: options.intro ?? "scatter",
       accentShare: options.accentShare ?? 0.06,
+      sweep: options.sweep ?? 0.55,
+      jitter: options.jitter ?? 0.25,
+      spring: options.spring ?? SPRING,
       onFirstForm: options.onFirstForm,
     };
     this.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -248,7 +256,7 @@ export class ParticleField {
         p.bound = false;
       }
       // Intro sweeps left to right; later morphs start together.
-      p.delay = fresh && this.opts.intro !== "none" ? (p.hx / this.width) * 0.55 + Math.random() * 0.25 : Math.random() * 0.12;
+      p.delay = fresh && this.opts.intro !== "none" ? (p.hx / this.width) * this.opts.sweep + Math.random() * this.opts.jitter : Math.random() * 0.12;
     }
 
     if (fresh && this.opts.intro === "none") {
@@ -349,7 +357,7 @@ export class ParticleField {
         p.vx += (-dy / d) * 0.32 - (dx / d) * pull + Math.sin(now * 0.001 + p.seed) * 0.05;
         p.vy += (dx / d) * 0.32 * 0.55 - (dy / d) * pull + Math.cos(now * 0.0012 + p.seed) * 0.05;
       } else if (t > p.delay) {
-        const k = p.bound ? SPRING : SPRING * 0.05;
+        const k = p.bound ? this.opts.spring : this.opts.spring * 0.05;
         p.vx += (p.hx - p.x) * k;
         p.vy += (p.hy - p.y) * k;
         if (!p.bound) {

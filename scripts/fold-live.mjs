@@ -48,11 +48,24 @@ if (!entries.length && !removed.size) {
   process.exit(0);
 }
 
+/* same rules as the site (src/data/live.ts): a gist entry replaces the baked
+   title it matches by id or by type + normalised title + year */
+const identity = (e) => `${e.type}|${e.title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '')}|${e.year ?? ''}`;
 const baked = JSON.parse(await readFile(BAKED, 'utf8'));
-const patch = new Map(entries.map((e) => [e.id, e]));
-const out = baked.filter((e) => !removed.has(e.id)).map((e) => patch.get(e.id) ?? e);
-const have = new Set(out.map((e) => e.id));
-for (const e of entries) if (!have.has(e.id) && !removed.has(e.id)) out.push(e);
+const live = entries.filter((e) => !removed.has(e.id));
+const byId = new Map(live.map((e) => [e.id, e]));
+const byIdentity = new Map(live.map((e) => [identity(e), e]));
+const used = new Set();
+const out = [];
+for (const e of baked) {
+  if (removed.has(e.id)) continue;
+  const p = byId.get(e.id) ?? byIdentity.get(identity(e));
+  if (p && !used.has(p)) {
+    used.add(p);
+    out.push(p);
+  } else if (!p) out.push(e);
+}
+for (const p of live) if (!used.has(p) && !out.some((e) => e.id === p.id || identity(e) === identity(p))) out.push(p);
 
 /* bare TMDB poster ids → local files, like the bake does */
 await mkdir(POSTERS, { recursive: true });

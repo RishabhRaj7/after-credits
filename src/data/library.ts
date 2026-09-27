@@ -78,9 +78,34 @@ export function normalizeGenres(list?: string[]): string[] | undefined {
   return [...out];
 }
 
+/* the same title under a different id (a CSV row without a TMDB id, a
+   manual edit) is still the same title: type + normalised name + year */
+export function identity(e: Pick<Entry, 'type' | 'title' | 'year'>): string {
+  return `${e.type}|${e.title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '')}|${e.year ?? ''}`;
+}
+
+/* one entry per id and per identity; later entries win */
+export function dedupe(entries: Entry[]): Entry[] {
+  const out: Entry[] = [];
+  const at = new Map<string, number>();
+  for (const e of entries) {
+    const i = at.get(`id:${e.id}`) ?? at.get(`t:${identity(e)}`);
+    if (i === undefined) {
+      at.set(`id:${e.id}`, out.length);
+      at.set(`t:${identity(e)}`, out.length);
+      out.push(e);
+    } else {
+      out[i] = e;
+      at.set(`id:${e.id}`, i);
+      at.set(`t:${identity(e)}`, i);
+    }
+  }
+  return out;
+}
+
 /* every library source (baked, server, browser, fresh import) passes through here */
 export function prepareLibrary(entries: Entry[]): Entry[] {
-  return entries.map((e) => ({ ...e, genres: normalizeGenres(e.genres) }));
+  return dedupe(entries.map((e) => ({ ...e, genres: normalizeGenres(e.genres) })));
 }
 
 /* `data/baked-library.json` is the committed source of truth — produced by

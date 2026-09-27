@@ -1,4 +1,4 @@
-import type { Entry } from './library';
+import { dedupe, identity, type Entry } from './library';
 
 /* ── the live log ──────────────────────────────────────────────────────────
    A GitHub Gist holds everything that changed since the library was baked:
@@ -97,14 +97,27 @@ export async function publishOverlay(overlay: Overlay): Promise<void> {
   if (!res.ok) throw new Error(`GitHub returned ${res.status}.`);
 }
 
-/* baked library + overlay → what visitors see */
+/* baked library + overlay → what visitors see. A gist entry replaces the
+   baked title it matches by id or by identity, so nothing appears twice. */
 export function applyOverlay(base: Entry[], overlay: Overlay): Entry[] {
   const removed = new Set(overlay.removed);
-  const patch = new Map(overlay.entries.map((e) => [e.id, e]));
-  const out = base.filter((e) => !removed.has(e.id)).map((e) => patch.get(e.id) ?? e);
-  const have = new Set(out.map((e) => e.id));
-  for (const e of overlay.entries) if (!have.has(e.id) && !removed.has(e.id)) out.push(e);
-  return out;
+  const patches = dedupe(overlay.entries.filter((e) => !removed.has(e.id)));
+  const byId = new Map(patches.map((e) => [e.id, e]));
+  const byIdentity = new Map(patches.map((e) => [identity(e), e]));
+  const used = new Set<Entry>();
+  const out: Entry[] = [];
+  for (const e of base) {
+    if (removed.has(e.id)) continue;
+    const p = byId.get(e.id) ?? byIdentity.get(identity(e));
+    if (p && !used.has(p)) {
+      used.add(p);
+      out.push(p);
+    } else if (!p) {
+      out.push(e);
+    }
+  }
+  for (const p of patches) if (!used.has(p)) out.push(p);
+  return dedupe(out);
 }
 
 /* current library → the smallest overlay that reproduces it from the bake */

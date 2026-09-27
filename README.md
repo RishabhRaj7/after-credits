@@ -37,32 +37,116 @@ live in `public/posters/`. No runtime API calls.
 
 ### Log new titles live — no commit, no redeploy
 
-A GitHub Gist acts as the live database. The site loads the baked library,
-then layers the gist's changes over it for every visitor. You add titles
-from the site itself.
+**How it works.** A GitHub Gist (a small file hosted by GitHub) acts as the
+live database. The site ships with the baked library
+(`data/baked-library.json`); when any visitor opens the page it also reads
+the gist and layers its changes on top — titles logged since the bake,
+edits, removals. You write to the gist from the site itself, so a new title
+is live on everyone's next page load with no commit and no rebuild.
 
-**One-time setup**
+- The gist only stores the *difference* from the bake, so it stays small.
+- A gist title replaces the baked title it matches — by id, or by type +
+  title + year — so nothing is ever listed twice.
+- Anyone can read the gist; only your GitHub token can write to it, and the
+  token never leaves your browser.
 
-1. Create a gist at <https://gist.github.com> with one file named
-   `after-credits-live.json` containing `{}` (secret is fine).
-2. Put the gist id (the hash in its URL) in your host's environment as
-   `VITE_LIBRARY_GIST_ID` (or in `.env.local` for local dev) and deploy once.
-3. Create a GitHub token with only the **gist** scope
-   (Settings → Developer settings → Tokens (classic)).
-4. On the site: footer → **Import data** → **Quick log** → *Keys*: paste the
-   token and your TMDB key. Both stay in that browser only.
+#### One-time setup (≈5 minutes)
 
-**Day to day:** Quick log → type the title → pick it → set the date → **Log it**.
-It's live for every visitor on their next page load. Edits and deletes in
-**Edit library** publish the same way. Visitors can read the gist but only
-your token can write to it.
+**1 · Create the gist**
 
-**Now and then** fold the live titles into the bake (downloads their posters):
+1. Sign in to GitHub and open <https://gist.github.com>.
+2. *Filename including extension*: `after-credits-live.json` (exactly this).
+3. Content: `{}`
+4. Click **Create secret gist** (secret = unlisted; the site can still read
+   it, it just isn't searchable). Public works too.
+5. Copy the **gist id** — the long hex string at the end of the URL, e.g.
+   `https://gist.github.com/<you>/`**`8f1c0d6e2b7a4c3d9e5f60718293a4b5`**.
+
+**2 · Tell the site which gist to read** — `VITE_LIBRARY_GIST_ID`
+
+The id is read at build time, so set it once and build/deploy once.
+
+| where the site is built | what to do |
+|---|---|
+| **Vercel** | Project → Settings → Environment Variables → add `VITE_LIBRARY_GIST_ID` = your id (Production + Preview) → Deployments → ⋯ → **Redeploy** |
+| **Netlify** | Site configuration → Environment variables → add `VITE_LIBRARY_GIST_ID` → Deploys → **Trigger deploy** |
+| **Built locally** (e.g. you commit `dist/` and the host serves it as-is) | create `.env.local` in the project root with `VITE_LIBRARY_GIST_ID=your_id`, run `npm run build`, commit `dist/` |
+| **Local dev** | same `.env.local`, then `npm run dev` |
+
+`.env.local` is git-ignored. The id isn't secret, so you can also hard-code it
+in `DEFAULT_GIST_ID` in `src/data/live.ts` instead.
+
+**3 · Create a GitHub token that can only edit gists**
+
+1. GitHub → avatar → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**.
+   (Fine-grained tokens can't write gists — it has to be classic.)
+2. Note: `after-credits live log`. Expiration: your call (you'll re-paste it
+   when it expires).
+3. Scopes: tick **only `gist`**. Nothing else.
+4. Generate and copy the token (`ghp_…`) — GitHub shows it once.
+
+**4 · Get a TMDB key** (if you don't have one): <https://www.themoviedb.org/settings/api>
+→ copy the **API Key (v3 auth)**.
+
+**5 · Connect the site** — on your deployed site: footer → **Import data** →
+**Quick log** → **Keys**: paste the TMDB key and the GitHub token. The panel
+shows **Ready**. Both are stored in this browser's local storage only; repeat
+on any other device you want to log from.
+
+#### Day to day
+
+1. Footer → **Import data** → **Quick log**.
+2. Type what you watched; pick it from the TMDB results (a title already on
+   the log is marked *On the log* — logging it again updates its date rather
+   than adding a duplicate).
+3. Set **Watched on** (defaults to today), tick ♥ if it's a favourite.
+4. **Log it**. Done — reload the page anywhere and it's there, poster,
+   runtime, episodes and genres included.
+
+Made a mistake? The list under the search removes live titles, and
+**Edit library** edits or deletes any title (baked ones too) — saves publish
+straight to the gist.
+
+#### Once in a while: fold the live titles into the bake
+
+Nothing breaks if you never do this — the gist can hold hundreds of titles.
+Folding just keeps the gist small and moves posters from TMDB's CDN into the
+repo. Every few months, or whenever you're committing anyway:
 
 ```bash
-VITE_LIBRARY_GIST_ID=<id> GITHUB_TOKEN=<token> npm run fold-live -- --clear
-npm run build   # then commit
+# 1. pull the gist into data/baked-library.json, download new posters,
+#    then empty the gist (--clear needs the same gist-scoped token)
+VITE_LIBRARY_GIST_ID=your_id GITHUB_TOKEN=ghp_xxx npm run fold-live -- --clear
+
+# 2. rebuild the site with the updated bake
+npm run build
+
+# 3. commit the updated data, posters and build
+git add data/baked-library.json public/posters dist
+git commit -m "Fold live log into bake"
+git push
 ```
+
+On Windows PowerShell set the variables first:
+`$env:VITE_LIBRARY_GIST_ID="your_id"; $env:GITHUB_TOKEN="ghp_xxx"; npm run fold-live -- --clear`
+
+If your host builds from the repo (Vercel / Netlify), the push deploys it; the
+`VITE_LIBRARY_GIST_ID` variable stays set, so live logging carries on against
+the now-empty gist. Skipping `--clear` is safe too — folded titles in the
+gist simply match the bake and are not shown twice.
+
+**Troubleshooting**
+
+- *"GitHub rejected the token"* — the token lacks the `gist` scope or expired;
+  make a new classic token (step 3) and paste it in **Keys**.
+- *"Gist not found"* — the id is wrong, or the token belongs to a different
+  GitHub account than the gist.
+- *New title not showing for visitors* — they need a reload; the site reads
+  the gist once per page load. GitHub allows 60 anonymous reads per hour per
+  visitor IP, far above normal browsing.
+- *Quick log says live logging isn't switched on* — the build didn't see
+  `VITE_LIBRARY_GIST_ID`; set it (step 2) and rebuild/redeploy.
 
 ### Bake your export (permanent, for every visitor)
 

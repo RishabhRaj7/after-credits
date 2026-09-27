@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Heart, KeyRound, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { Poster } from './Poster';
-import { LIBRARY, fmtDate, type Entry } from '../data/library';
+import { LIBRARY, fmtDate, identity, type Entry } from '../data/library';
 import { fetchTmdbEntry, getTmdbKey, searchTmdb, setTmdbKey, type TmdbHit } from '../data/importer';
 import { GIST_FILE, GIST_ID, getGithubToken, liveEnabled, setGithubToken } from '../data/live';
 
@@ -28,7 +28,8 @@ export default function QuickLog({ entries, onCommit }: { entries: Entry[]; onCo
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const timer = useRef(0);
 
-  const onLog = useMemo(() => new Set(entries.map((e) => e.id)), [entries]);
+  const onLog = useMemo(() => new Set(entries.flatMap((e) => [e.id, identity(e)])), [entries]);
+  const logged = (h: TmdbHit) => onLog.has(`${h.type}-${h.tmdbId}`) || onLog.has(identity(h));
   const baked = useMemo(() => new Set(LIBRARY.map((e) => e.id)), []);
   const liveAdds = useMemo(
     () => entries.filter((e) => !baked.has(e.id)).sort((a, b) => b.addedAt.localeCompare(a.addedAt)),
@@ -73,7 +74,7 @@ export default function QuickLog({ entries, onCommit }: { entries: Entry[]; onCo
     setBusy(true);
     try {
       const entry = await fetchTmdbEntry(pick, date, fav, tmdbKey);
-      await commit([...entries.filter((e) => e.id !== entry.id), entry], `Logged ${entry.title} — live for every visitor.`);
+      await commit([...entries.filter((e) => e.id !== entry.id && identity(e) !== identity(entry)), entry], `Logged ${entry.title} — live for every visitor.`);
       setPick(null);
       setQ('');
       setFav(false);
@@ -172,7 +173,7 @@ export default function QuickLog({ entries, onCommit }: { entries: Entry[]; onCo
           <ul className="mt-2 max-h-[34vh] overflow-y-auto border border-line">
             {hits.map((h) => {
               const id = `${h.type}-${h.tmdbId}`;
-              const have = onLog.has(id);
+              const have = logged(h);
               return (
                 <li key={id}>
                   <button
@@ -202,7 +203,7 @@ export default function QuickLog({ entries, onCommit }: { entries: Entry[]; onCo
             <div className="min-w-0">
               <div className="label text-[8.5px] text-blood">{pick.type === 'movie' ? 'Film' : 'Series'} · {pick.year ?? '—'}</div>
               <div className="mt-1 truncate text-[15px] font-semibold text-bone">{pick.title}</div>
-              {onLog.has(`${pick.type}-${pick.tmdbId}`) && (
+              {logged(pick) && (
                 <div className="label mt-1 text-[8.5px] text-fog">Already on the log — saving updates its date.</div>
               )}
             </div>
