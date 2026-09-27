@@ -7,7 +7,7 @@ import type { Entry } from './library';
    (only their paths are stored). The TMDB API key + lookup cache stay in
    the browser on purpose: device-local credentials, not shared data. */
 
-export type StoreMode = 'server' | 'browser' | 'sample';
+export type StoreMode = 'live' | 'server' | 'browser' | 'sample';
 
 /* ── server store (server.mjs) ───────────────────────────────────────────
    Preferred: the library lives on the server so every device/visitor sees
@@ -355,4 +355,41 @@ export async function enrichRows(
   saveCache(cache);
   onProgress({ done: rows.length, total: rows.length, fetched, cached, failed, current: '' });
   return out;
+}
+
+/* ── quick log: search one title, fetch it fully ───────────────────────── */
+
+export interface TmdbHit {
+  tmdbId: number;
+  type: 'movie' | 'show';
+  title: string;
+  year: number | null;
+  poster: string | null;
+  overview: string;
+}
+
+export async function searchTmdb(query: string, key: string): Promise<TmdbHit[]> {
+  const q = encodeURIComponent(query.trim());
+  if (!q) return [];
+  const data = await tmdbGet(`/search/multi?query=${q}&include_adult=false`, key);
+  const results = (data.results as Record<string, unknown>[] | undefined) ?? [];
+  return results
+    .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+    .slice(0, 12)
+    .map((r) => {
+      const date = (r.release_date ?? r.first_air_date ?? '') as string;
+      return {
+        tmdbId: r.id as number,
+        type: r.media_type === 'movie' ? 'movie' : 'show',
+        title: (r.title ?? r.name ?? '') as string,
+        year: date ? Number(date.slice(0, 4)) : null,
+        poster: r.poster_path ? String(r.poster_path).replace(/^\//, '') : null,
+        overview: (r.overview ?? '') as string,
+      };
+    });
+}
+
+export async function fetchTmdbEntry(hit: TmdbHit, addedAt: string, favorite: boolean, key: string): Promise<Entry> {
+  const data = await tmdbGet(`/${hit.type === 'movie' ? 'movie' : 'tv'}/${hit.tmdbId}`, key);
+  return toEntry({ type: hit.type, title: hit.title, year: hit.year, tmdbId: hit.tmdbId, favorite, addedAt }, data);
 }

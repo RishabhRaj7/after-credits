@@ -1,23 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AnimatePresence,
-  motion,
-  useScroll,
-  useMotionValueEvent,
-} from 'framer-motion';
-import { ArrowUp, ArrowUpRight } from 'lucide-react';
-import { Grain } from './components/Effects';
-import Hero from './components/Hero';
-import CutTo, { type CutSpec } from './components/CutTo';
-import DetailPanel from './components/DetailPanel';
-import ImportPanel from './components/ImportPanel';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion, useScroll } from 'framer-motion';
 import SiteHeader from './components/SiteHeader';
+import Hero from './components/Hero';
+import Almanac from './components/Almanac';
+import ControlDeck, { ProjectionTabs, VIEW_META, type ViewId } from './components/ControlDeck';
+import CutTo, { EXIT_MS, FORMED_MS, type Cut } from './components/CutTo';
+import DetailPanel from './components/DetailPanel';
+import SearchPalette from './components/SearchPalette';
+import Footer from './components/Footer';
 import BehindScenes from './components/BehindScenes';
-import Logo from './components/Logo';
-import { TopBar, VIEW_META, type ViewId } from './components/Controls';
+import ImportPanel from './components/ImportPanel';
 import ClusterBurst from './views/ClusterBurst';
 import Reel from './views/Reel';
-import { LIBRARY, sortedEntries, statsFor, type Entry, type Order, type TypeFilter, genreCounts } from './data/library';
+import {
+  LIBRARY,
+  decadeStats,
+  genreStats,
+  groupByYear,
+  prepareLibrary,
+  sortedEntries,
+  statsFor,
+  yearOf,
+  type Dir,
+  type Entry,
+  type Order,
+  type TypeFilter,
+} from './data/library';
 import {
   clearStoredLibrary,
   deleteServerLibrary,
@@ -27,277 +35,285 @@ import {
   saveStoredLibrary,
   type StoreMode,
 } from './data/importer';
+import { applyOverlay, diffOverlay, fetchOverlay, liveEnabled, publishOverlay } from './data/live';
+import type { DataTab } from './components/ImportPanel';
+
+const scrollToEl = (el: HTMLElement | null, offset = 0) => {
+  if (el) window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset), behavior: 'smooth' });
+};
 
 export default function App() {
-  const [view, setView] = useState<ViewId>('burst');
-  const [order, setOrder] = useState<Order>('watch');
-  const [selected, setSelected] = useState<Entry | null>(null);
-  const [cut, setCut] = useState<CutSpec | null>(null);
-  const [barVisible, setBarVisible] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importTab, setImportTab] = useState<'import' | 'edit'>('import');
-  const [behindOpen, setBehindOpen] = useState(false);
-
-  // On phones, let the open panel scroll without moving the page underneath.
-  useEffect(() => {
-    if (!(selected || importOpen || behindOpen) || !window.matchMedia('(max-width: 1023px)').matches) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
-  }, [selected, importOpen, behindOpen]);
-
-  /* the active library, in priority order: server store → browser store →
-     baked-in sample export */
-  const [library, setLibrary] = useState<Entry[]>(() => loadStoredLibrary() ?? LIBRARY);
-  const [storeMode, setStoreMode] = useState<StoreMode>(() =>
-    loadStoredLibrary() ? 'browser' : 'sample',
-  );
-
+  /* the active library: with a live gist configured, the baked library plus
+     the gist's changes (for every visitor); otherwise server store → browser
+     store → baked */
+  const live = liveEnabled();
+  const [library, setLibrary] = useState<Entry[]>(() => {
+    const stored = live ? null : loadStoredLibrary();
+    return stored ? prepareLibrary(stored) : LIBRARY;
+  });
+  const [storeMode, setStoreMode] = useState<StoreMode>(() => (live ? 'live' : loadStoredLibrary() ? 'browser' : 'sample'));
   useEffect(() => {
     let alive = true;
-    fetchServerLibrary().then((entries) => {
-      if (!alive || !entries) return;
-      setLibrary(entries);
-      setStoreMode('server');
-    });
+    if (live) {
+      fetchOverlay().then((overlay) => {
+        if (alive && overlay) setLibrary(prepareLibrary(applyOverlay(LIBRARY, overlay)));
+      });
+    } else {
+      fetchServerLibrary().then((entries) => {
+        if (!alive || !entries) return;
+        setLibrary(prepareLibrary(entries));
+        setStoreMode('server');
+      });
+    }
     return () => {
       alive = false;
     };
+  }, [live]);
+
+  const [view, setView] = useState<ViewId>('burst');
+  const [order, setOrder] = useState<Order>('watch');
+  const [dir, setDir] = useState<Dir>('asc');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [hidden, setHidden] = useState<Set<number>>(new Set());
+  useEffect(() => setHidden(new Set()), [order]); // years mean something else in the other sequence
+
+  const [selected, setSelected] = useState<Entry | null>(null);
+  const [cut, setCut] = useState<Cut | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<DataTab>('log');
+  const [notesOpen, setNotesOpen] = useState(false);
+
+  const stats = useMemo(() => statsFor(library), [library]);
+  const genres = useMemo(() => genreStats(library), [library]);
+
+  /* one filter pipeline, shared by both projections */
+  const typed = useMemo(() => (typeFilter === 'all' ? library : library.filter((e) => e.type === typeFilter)), [library, typeFilter]);
+  const groups = useMemo(() => groupByYear(typed, order), [typed, order]);
+  const decades = useMemo(() => decadeStats(groups), [groups]);
+  const visible = useMemo(() => typed.filter((e) => !hidden.has(yearOf(e, order))), [typed, hidden, order]);
+  const sequence = useMemo(() => {
+    const s = sortedEntries(visible, order);
+    return dir === 'asc' ? s : s.reverse();
+  }, [visible, order, dir]);
+
+  const toggleYear = useCallback((y: number) => {
+    setHidden((h) => {
+      const n = new Set(h);
+      if (n.has(y)) n.delete(y);
+      else n.add(y);
+      return n;
+    });
+  }, []);
+  const toggleDecade = useCallback(
+    (d: number) => {
+      setHidden((h) => {
+        const n = new Set(h);
+        const ys = groups.filter((g) => Math.floor(g.year / 10) * 10 === d).map((g) => g.year);
+        const allIn = ys.every((y) => !n.has(y));
+        ys.forEach((y) => (allIn ? n.add(y) : n.delete(y)));
+        return n;
+      });
+    },
+    [groups],
+  );
+  const resetFilters = useCallback(() => {
+    setHidden(new Set());
+    setTypeFilter('all');
   }, []);
 
-  const items = useMemo(() => sortedEntries(library, order), [library, order]);
-  const stats = useMemo(() => statsFor(library), [library]);
-  const genres = useMemo(() => genreCounts(LIBRARY), []);
-  const viewsRef = useRef<HTMLDivElement>(null);
-  const isStored = storeMode !== 'sample';
+  const almanacRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLElement>(null);
+  const deckAnchorRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: logRef, offset: ['start start', 'end end'] });
 
-  /* shared by both views so filters + sort persist across view switches */
-  const [hiddenYears, setHiddenYears] = useState<Set<number>>(new Set());
-  const [dir, setDir] = useState<'asc' | 'desc'>('asc');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  useEffect(() => setHiddenYears(new Set()), [order]);
-  const viewItems = useMemo(
-    () => (typeFilter === 'all' ? items : items.filter((e) => e.type === typeFilter)),
-    [items, typeFilter],
-  );
-
-  /* page scroll → top-bar hairline + visibility */
-  const { scrollY, scrollYProgress } = useScroll();
-  useMotionValueEvent(scrollY, 'change', (v) => {
-    const narrow = window.matchMedia('(max-width: 1023px)').matches;
-    const threshold = narrow && viewsRef.current
-      ? Math.max(120, viewsRef.current.offsetTop - 160)
-      : window.innerHeight * 0.9;
-    const show = v > threshold;
-    setBarVisible((prev) => (prev === show ? prev : show));
-  });
-
-  /* CUT TO: wipe covers → swap the mounted view → wipe exits */
+  /* CUT TO: leader covers → swap the mounted view → leader wipes off */
   const onSwitch = useCallback(
     (v: ViewId) => {
       if (v === view || cut) return;
-      setCut({
-        label: VIEW_META[v].label,
-        scene: v === 'reel' ? 'SCENE 02 / TAKE 01' : 'SCENE 01 / TAKE 02',
-      });
+      setCut({ label: VIEW_META[v].label, phase: 'in' });
+      // swap only once the name has formed, and as a transition so the swarm
+      // keeps animating while the new view builds
       window.setTimeout(() => {
-        setView(v);
-        if (viewsRef.current) {
-          const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - (window.matchMedia('(max-width: 1023px)').matches ? 100 : 48);
-          window.scrollTo({ top: y, behavior: 'auto' });
-        }
-      }, 380);
-      window.setTimeout(() => setCut(null), 430);
+        const el = deckAnchorRef.current;
+        if (el && el.getBoundingClientRect().top < 0) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY });
+        startTransition(() => setView(v));
+      }, FORMED_MS);
+      // failsafe: never leave the page covered if the reveal signal is missed
+      window.setTimeout(() => setCut((c) => (c && c.phase === 'in' ? { ...c, phase: 'out' } : c)), FORMED_MS + 2500);
     },
     [view, cut],
   );
 
-  const onOrder = useCallback((o: Order) => setOrder(o), []);
+  /* called by the freshly mounted view: let it paint, then detonate and open up */
+  const cutRef = useRef(cut);
+  cutRef.current = cut;
+  const onViewShown = useCallback(() => {
+    if (cutRef.current?.phase !== 'in') return;
+    requestAnimationFrame(() => requestAnimationFrame(() => setCut((c) => (c ? { ...c, phase: 'out' } : c))));
+  }, []);
+  useEffect(() => {
+    if (cut?.phase !== 'out') return;
+    const t = window.setTimeout(() => setCut(null), EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [cut?.phase]);
+
+  /* "/" or ⌘K opens search from anywhere that isn't a text field */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      if (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const onSelect = useCallback((e: Entry) => setSelected(e), []);
   const onClose = useCallback(() => setSelected(null), []);
-  const onOpenImport = useCallback(() => {
-    setImportTab('import');
-    setImportOpen(true);
+  const onPick = useCallback((e: Entry) => {
+    setSearchOpen(false);
+    setSelected(e);
   }, []);
-  const onOpenCollection = useCallback(() => {
-    setImportTab('edit');
+  const openData = useCallback((tab: DataTab) => {
+    setImportTab(tab);
     setImportOpen(true);
-  }, []);
-  const onJourney = useCallback(() => {
-    if (!viewsRef.current) return;
-    const y = viewsRef.current.getBoundingClientRect().top + window.scrollY - (window.matchMedia('(max-width: 1023px)').matches ? 108 : 56);
-    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
   }, []);
   const onImported = useCallback(async (entries: Entry[]) => {
+    if (live) {
+      // only the difference from the bake goes to the gist; throws on failure so the panel can say why
+      const next = prepareLibrary(entries);
+      await publishOverlay(diffOverlay(LIBRARY, next));
+      setLibrary(next);
+      return;
+    }
     const onServer = await saveServerLibrary(entries);
     if (!onServer) saveStoredLibrary(entries); // static host → keep it in the browser
-    setLibrary(entries);
+    setLibrary(prepareLibrary(entries));
     setStoreMode(onServer ? 'server' : 'browser');
-  }, []);
-  const onRestoreSample = useCallback(async () => {
+  }, [live]);
+  const onRestore = useCallback(async () => {
+    if (live) {
+      await publishOverlay(diffOverlay(LIBRARY, LIBRARY));
+      setLibrary(LIBRARY);
+      return;
+    }
     await deleteServerLibrary();
     clearStoredLibrary();
     setLibrary(LIBRARY);
     setStoreMode('sample');
-  }, []);
+  }, [live]);
+
+  const goLog = () => scrollToEl(deckAnchorRef.current);
+  const goAlmanac = () => scrollToEl(almanacRef.current);
 
   return (
-    <div className="relative min-h-screen bg-ink text-bone">
-      <Grain />
-      <CutTo cut={cut} />
+    <MotionConfig reducedMotion="user">
+      <div className="relative min-h-screen bg-ink text-bone">
+        <CutTo cut={cut} />
 
-      <SiteHeader
-        count={library.length}
-        onJourney={onJourney}
-        onCollection={onOpenCollection}
-        onBehind={() => setBehindOpen(true)}
-      />
+        <SiteHeader
+          count={library.length}
+          onTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onLog={goLog}
+          onAlmanac={goAlmanac}
+          onNotes={() => setNotesOpen(true)}
+          onSearch={() => setSearchOpen(true)}
+        />
 
-      <AnimatePresence>
-        {barVisible && (
-          <TopBar
-            order={order}
-            view={view}
-            onOrder={onOrder}
-            onSwitch={onSwitch}
-            onImport={onOpenImport}
-            stats={stats}
-            progress={scrollYProgress}
-          />
-        )}
-      </AnimatePresence>
+        <main>
+          <Hero entries={library} stats={stats} genres={genres} onEnterLog={goLog} onAlmanac={goAlmanac} />
 
-      <Hero order={order} view={view} onOrder={onOrder} onSwitch={onSwitch} entries={library} stats={stats} genres={genres} />
+          <div ref={almanacRef}>
+            <Almanac entries={library} onOpen={onSelect} />
+          </div>
 
-      {/* the projection itself — keyed so order flips and view swaps reflow
-          through a quick editorial blur instead of a hard reload */}
-      <div ref={viewsRef}>
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={`${view}:${order}`}
-            initial={{ opacity: 0, y: 30, filter: 'blur(7px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -20, filter: 'blur(7px)' }}
-            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {view === 'burst' ? (
-              <ClusterBurst
-                items={viewItems}
-                order={order}
-                onSelect={onSelect}
-                hidden={hiddenYears}
-                onHidden={setHiddenYears}
-                dir={dir}
-                onDir={setDir}
-                typeFilter={typeFilter}
-                onTypeFilter={setTypeFilter}
-              />
-            ) : (
-              <Reel
-                items={viewItems}
-                order={order}
-                onSelect={onSelect}
-                hidden={hiddenYears}
-                onHidden={setHiddenYears}
-                dir={dir}
-                onDir={setDir}
-                typeFilter={typeFilter}
-                onTypeFilter={setTypeFilter}
-              />
-            )}
-          </motion.main>
-        </AnimatePresence>
+          <section id="log" ref={logRef} className="relative">
+            <div className="mx-auto max-w-[1600px] px-4 pt-20 sm:px-8 lg:pt-28">
+              <div className="label text-blood">02 — The log</div>
+              <div className="mt-6">
+                <ProjectionTabs view={view} onSwitch={onSwitch} />
+              </div>
+            </div>
+
+            <div ref={deckAnchorRef} />
+            <ControlDeck
+              view={view}
+              onSwitch={onSwitch}
+              order={order}
+              onOrder={setOrder}
+              dir={dir}
+              onDir={setDir}
+              typeFilter={typeFilter}
+              onTypeFilter={setTypeFilter}
+              groups={groups}
+              decades={decades}
+              hidden={hidden}
+              onToggleYear={toggleYear}
+              onToggleDecade={toggleDecade}
+              onAll={() => setHidden(new Set())}
+              onSearch={() => setSearchOpen(true)}
+              progress={scrollYProgress}
+            />
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${view}:${order}`}
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: cut ? 0 : 0.2 } }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                onAnimationStart={onViewShown}
+                className="pt-10"
+              >
+                {visible.length === 0 ? (
+                  <div className="mx-auto max-w-xl px-4 py-32 text-center">
+                    <div className="font-display text-6xl font-extrabold uppercase text-rule">Reel empty</div>
+                    <p className="mt-4 text-sm text-fog">Every year is filtered out.</p>
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="label mt-6 cursor-pointer border border-bone px-5 py-3 text-bone transition-colors hover:bg-bone hover:text-ink"
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                ) : view === 'burst' ? (
+                  <ClusterBurst items={visible} order={order} dir={dir} onSelect={onSelect} />
+                ) : (
+                  <Reel items={visible} order={order} dir={dir} onSelect={onSelect} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </section>
+        </main>
+
+        <Footer stored={storeMode !== 'sample'} onManage={() => openData('log')} onNotes={() => setNotesOpen(true)} />
+
+        <SearchPalette open={searchOpen} entries={library} onClose={() => setSearchOpen(false)} onPick={onPick} />
+        <BehindScenes open={notesOpen} onClose={() => setNotesOpen(false)} count={library.length} onManage={() => { setNotesOpen(false); openData('log'); }} />
+        <ImportPanel
+          open={importOpen}
+          initialTab={importTab}
+          onClose={() => setImportOpen(false)}
+          onImported={onImported}
+          onCommit={onImported}
+          entries={library}
+          storeMode={storeMode}
+          onRestore={onRestore}
+        />
+        <DetailPanel
+          entry={selected}
+          sequence={sequence}
+          order={order}
+          totalMinutes={stats.minutes}
+          onSelect={onSelect}
+          onClose={onClose}
+        />
       </div>
-
-      <footer className="chrome-orig border-t border-line bg-ink">
-        <div className="mx-auto max-w-[1600px] px-5 sm:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-4 py-7">
-            <div className="flex flex-wrap items-center gap-5">
-              <Logo />
-              <span className="font-tele text-[10px] tracking-[0.18em] text-fog">
-                A life measured in stories, not screens.
-              </span>
-            </div>
-            <div className="flex items-center gap-6">
-              <button
-                onClick={onOpenImport}
-                className="cursor-pointer font-tele text-[10px] tracking-[0.26em] text-dim transition-colors hover:text-bone"
-              >
-                {isStored ? 'MANAGE DATA' : 'IMPORT DATA'}
-              </button>
-              <button
-                onClick={() => setBehindOpen(true)}
-                className="group flex cursor-pointer items-center gap-1.5 font-tele text-[10px] tracking-[0.26em] text-dim transition-colors hover:text-bone"
-              >
-                THE SMALL PRINT
-                <ArrowUpRight
-                  size={12}
-                  className="text-blood transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                />
-              </button>
-            </div>
-          </div>
-
-          <div className="h-px bg-line" />
-
-          <div className="flex flex-wrap items-start justify-between gap-4 py-6">
-            <p className="max-w-3xl font-tele text-[9.5px] leading-relaxed tracking-[0.06em] text-dim">
-              Watch order uses the date added, not a recorded watch date. Estimated time includes
-              each film's runtime (120 min when unknown) and each series' episodes × episode
-              runtime (40 min when unknown); ongoing series may undercount. Missing metadata keeps
-              its default — it never silently counts zero.
-            </p>
-            <div className="space-y-1.5 sm:text-right">
-              <a
-                href="https://www.themoviedb.org"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 font-tele text-[9.5px] tracking-[0.14em] text-fog transition-colors hover:text-bone sm:justify-end"
-              >
-                Metadata & posters via TMDB
-                <ArrowUpRight size={10} className="text-blood" />
-              </a>
-              <span className="block font-tele text-[8.5px] tracking-[0.08em] text-dim">
-                This product uses the TMDB API but is not endorsed or certified by TMDB.
-              </span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* back to the top */}
-      <AnimatePresence>
-        {barVisible && (
-          <motion.button
-            type="button"
-            title="Back to the top"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 18 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="fixed bottom-6 right-6 z-[80] flex h-11 w-11 cursor-pointer items-center justify-center bg-blood text-white shadow-[0_0_26px_rgba(229,9,20,0.55)] transition-colors hover:bg-ember"
-          >
-            <ArrowUp size={16} strokeWidth={2.4} />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      <BehindScenes open={behindOpen} onClose={() => setBehindOpen(false)} count={library.length} />
-
-      <ImportPanel
-        open={importOpen}
-        initialTab={importTab}
-        onClose={() => setImportOpen(false)}
-        onImported={onImported}
-        onCommit={onImported}
-        entries={library}
-        activeCount={library.length}
-        storeMode={storeMode}
-        onRestoreSample={onRestoreSample}
-      />
-
-      <DetailPanel entry={selected} order={order} onClose={onClose} />
-    </div>
+    </MotionConfig>
   );
 }

@@ -1,17 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart } from 'lucide-react';
 import type { Entry } from '../data/library';
 
-/* deterministic deep palette for typographic fallback cards */
-const SEEDS: Array<[string, string]> = [
-  ['#171114', '#e8ddd0'],
-  ['#101418', '#dfe5ea'],
-  ['#16140f', '#ece4d2'],
-  ['#0f1713', '#dcebe0'],
-  ['#170f16', '#e9dcea'],
-  ['#131313', '#e6e6e6'],
-];
+/* deterministic deep tones for typographic fallback cards */
+const SEEDS = ['#15131a', '#111519', '#16140f', '#101512', '#181216', '#141414'];
 
 function hash(s: string): number {
   let h = 0;
@@ -20,30 +12,24 @@ function hash(s: string): number {
 }
 
 function SeedCard({ entry }: { entry: Entry }) {
-  const [bg, fg] = SEEDS[hash(entry.title) % SEEDS.length];
-  const words = entry.title.toUpperCase().split(' ');
   return (
     <div
-      className="poster-seed absolute inset-0 flex flex-col justify-between p-[9%]"
-      style={{ background: bg, color: fg }}
+      className="poster-seed absolute inset-0 flex flex-col justify-between p-[9%] text-bone"
+      style={{ background: SEEDS[hash(entry.title) % SEEDS.length] }}
     >
-      <div className="font-tele text-[7px] leading-none tracking-[0.22em] opacity-60">
-        {entry.type === 'movie' ? 'A FILM' : 'A SERIES'}
+      <div className="font-tele text-[7px] leading-none tracking-[0.2em] text-fog">
+        {entry.type === 'movie' ? 'FILM' : 'SERIES'}
         {entry.year ? ` · ${entry.year}` : ''}
       </div>
       <div>
         <div className="mb-1.5 h-px w-5 bg-blood" />
-        <div className="font-display text-[clamp(13px,1.6vw,19px)] uppercase leading-[0.92] tracking-wide">
-          {words.join(' ')}
+        <div className="font-display text-[clamp(13px,1.6vw,19px)] font-bold uppercase leading-[0.95] tracking-wide">
+          {entry.title}
         </div>
       </div>
-      <div className="font-tele text-[6.5px] tracking-[0.3em] opacity-40">AFTER CREDITS</div>
     </div>
   );
 }
-
-/* original header refers to the bare art layer by this name */
-export const PosterArt = Poster;
 
 /* bare TMDB ids become CDN urls; baked entries carry local paths like
    "posters/x.jpg" (or full urls) and are used verbatim */
@@ -61,8 +47,9 @@ export function Poster({ entry, className = '' }: { entry: Entry; className?: st
       {showImg ? (
         <img
           src={posterSrc(entry.poster!)}
-          alt={entry.title}
+          alt=""
           loading="lazy"
+          decoding="async"
           draggable={false}
           onError={() => setBroken(true)}
           className="absolute inset-0 h-full w-full object-cover"
@@ -70,25 +57,18 @@ export function Poster({ entry, className = '' }: { entry: Entry; className?: st
       ) : (
         <SeedCard entry={entry} />
       )}
-      {showImg && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
-      )}
-      {entry.favorite && (
-        <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 backdrop-blur-sm">
-          <Heart size={10} className="fill-blood text-blood" />
-        </div>
-      )}
+      {entry.favorite && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 bg-blood" aria-label="Favorite" />}
     </div>
   );
 }
 
-/* poster that springs up ~2× on hover and yields its neighbors */
+/* poster that springs up on hover and rises above its neighbours */
 export function ZoomPoster({
   entry,
   className = '',
   posterClass = '',
   onClick,
-  hoverScale = 1.9,
+  hoverScale = 1.8,
 }: {
   entry: Entry;
   className?: string;
@@ -100,16 +80,14 @@ export function ZoomPoster({
     <motion.button
       type="button"
       onClick={() => onClick?.(entry)}
+      aria-label={`${entry.title}${entry.year ? ` (${entry.year})` : ''}`}
       whileHover={{ scale: hoverScale, zIndex: 60 }}
       whileTap={{ scale: hoverScale * 0.96 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 24 }}
-      className={`relative block cursor-pointer outline-none ${className}`}
+      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+      className={`relative block cursor-pointer ${className}`}
       style={{ zIndex: 2 }}
     >
-      <Poster
-        entry={entry}
-        className={`shadow-[0_18px_40px_-12px_rgba(0,0,0,0.85)] ring-1 ring-white/10 ${posterClass}`}
-      />
+      <Poster entry={entry} className={`outline outline-1 -outline-offset-1 outline-white/10 ${posterClass}`} />
     </motion.button>
   );
 }

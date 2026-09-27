@@ -1,36 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  motion,
-  useInView,
-  useMotionValueEvent,
-  useScroll,
-  useSpring,
-} from 'framer-motion';
-import { ArrowDown, ArrowUp } from 'lucide-react';
-import { ZoomPoster } from '../components/Poster';
-import { ChipsBar } from './Reel';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useInView, useMotionValueEvent, useScroll, useSpring } from 'framer-motion';
+import { Poster } from '../components/Poster';
+import Plexus from '../components/Plexus';
+import ScrambleText from '../components/ScrambleText';
 import MobileTrack from './MobileTrack';
+import { quipFor } from '../data/quips';
 import {
   clusterize,
-  decadeStats,
+  fmtDate,
   fmtDur,
+  fmtInt,
   fmtMonth,
-  groupByYear,
-  headlineFor,
   intensityFor,
-  sortKey,
+  watchMinutes,
+  yearOf,
   type Cluster,
+  type Dir,
   type Entry,
   type Order,
-  type TypeFilter,
 } from '../data/library';
 
-const VB_W = 1000;
 const LEFT_X = 330;
-const RIGHT_X = 668;
+const RIGHT_X = 670;
+const FAN_MAX = 6; // larger clusters render as a contact sheet
+const SHEET_ROWS = 2; // rows shown before "show all"
+const NARROW = 860;
+const GAP = 10;
+const EASE = [0.16, 1, 0.3, 1] as const;
 
 function useWidth(ref: React.RefObject<HTMLElement | null>) {
-  const [w, setW] = useState(960);
+  const [w, setW] = useState(() => Math.min(window.innerWidth, 1200));
   useEffect(() => {
     if (!ref.current) return;
     const ro = new ResizeObserver((es) => setW(es[0].contentRect.width));
@@ -40,11 +39,19 @@ function useWidth(ref: React.RefObject<HTMLElement | null>) {
   return w;
 }
 
+interface Sheet {
+  cols: number;
+  thumb: number;
+  shown: number;
+  height: number;
+}
 interface Node {
   cluster: Cluster;
   x: number;
   y: number;
   side: 'l' | 'r';
+  sheet: Sheet | null;
+  seen: number; // titles passed once this node is reached
 }
 interface YearBreak {
   year: number;
@@ -52,31 +59,52 @@ interface YearBreak {
   align: 'left' | 'right';
 }
 
-function buildGeo(clusters: Cluster[]) {
-  if (!clusters.length) return { nodes: [] as Node[], breaks: [] as YearBreak[], H: 280, d: '' };
+function sheetFor(c: Cluster, width: number, expanded: boolean): Sheet {
+  const thumb = Math.round(Math.max(62, Math.min(92, width / 13)));
+  const cols = Math.max(4, Math.floor((width + GAP) / (thumb + GAP)));
+  const shown = expanded ? c.size : Math.min(c.size, cols * SHEET_ROWS);
+  const rows = Math.ceil(shown / cols);
+  return { cols, thumb, shown, height: rows * (thumb * 1.5 + GAP) + (c.size > cols * SHEET_ROWS ? 64 : 12) };
+}
+
+function buildGeo(clusters: Cluster[], order: Order, width: number, pw: number, expanded: Set<string>) {
   const nodes: Node[] = [];
   const breaks: YearBreak[] = [];
-  let y = 210;
+  if (!clusters.length) return { nodes, breaks, H: 280, d: '' };
+  const ph = pw * 1.5;
+  /* `y` is the top of free space; each year numeral gets its own band, and
+     a fan's caption + posters sit above its anchor dot */
+  let y = 40;
+  let seen = 0;
   let prevYear: number | null = null;
   clusters.forEach((c, i) => {
     const side: 'l' | 'r' = i % 2 === 0 ? 'l' : 'r';
-    const yr = new Date(c.startTs).getFullYear();
+    const x = side === 'l' ? LEFT_X : RIGHT_X;
+    const yr = yearOf(c.items[0], order);
     if (yr !== prevYear) {
-      if (prevYear !== null) y += 170;
-      breaks.push({ year: yr, y: y - 80, align: side === 'l' ? 'right' : 'left' });
-      y += 90;
+      if (prevYear !== null) y += 60;
+      breaks.push({ year: yr, y, align: side === 'l' ? 'right' : 'left' });
+      y += 150;
       prevYear = yr;
     }
-    nodes.push({ cluster: c, x: side === 'l' ? LEFT_X : RIGHT_X, y, side });
-    y += c.size > 1 ? 560 + c.size * 14 : 500;
+    seen += c.size;
+    if (c.size > FAN_MAX) {
+      const sheet = sheetFor(c, width, expanded.has(c.key));
+      nodes.push({ cluster: c, x, y: y + 10, side, sheet, seen });
+      const caption = order === 'watch' && c.kind === 'backlog' ? 250 : 190;
+      y += 10 + caption + sheet.height + 200;
+    } else {
+      const anchor = y + ph + 90;
+      nodes.push({ cluster: c, x, y: anchor, side, sheet: null, seen });
+      y = anchor + (c.size > 1 ? 170 + c.size * 12 : 140);
+    }
   });
-  const H = y + 140;
+  const H = y + 160;
 
-  const pts = [
-    { x: nodes[0].x, y: -80 },
-    ...nodes.map((n) => ({ x: n.x, y: n.y })),
-    { x: nodes[nodes.length - 1].x, y: H + 80 },
-  ];
+  /* the path is drawn in real pixels (node x is in 0–1000 units) so the drawn
+     length and the playhead share one coordinate system */
+  const px = (u: number) => (u / 1000) * width;
+  const pts = [{ x: px(nodes[0].x), y: -80 }, ...nodes.map((n) => ({ x: px(n.x), y: n.y })), { x: px(nodes[nodes.length - 1].x), y: H + 80 }];
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 1; i < pts.length; i++) {
     const dy = pts[i].y - pts[i - 1].y;
@@ -85,95 +113,183 @@ function buildGeo(clusters: Cluster[]) {
   return { nodes, breaks, H, d };
 }
 
-/* one knot on the track: tight poster fan + caption block */
-function ClusterNode({
+/* ── pieces ────────────────────────────────────────────────────────────── */
+
+function Caption({ cluster, order, index, sheet }: { cluster: Cluster; order: Order; index: number; sheet?: boolean }) {
+  const n = cluster.size;
+  const quip = quipFor(cluster, order);
+  const intensity = intensityFor(cluster, order);
+  return (
+    <>
+      <div className="label flex items-center gap-2.5 text-[9.5px] text-fog">
+        <span className="tabular-nums text-blood">K{String(index + 1).padStart(3, '0')}</span>
+        <span className="h-px w-5 bg-rule" />
+        {fmtMonth(cluster.startTs)}
+      </div>
+      <h3 className={`mt-3 font-semibold leading-[1.12] tracking-tight text-bone ${sheet ? 'max-w-[26ch] text-[clamp(26px,3vw,36px)]' : 'text-[24px] sm:text-[26px]'}`}>
+        <ScrambleText text={quip.headline} duration={Math.min(1100, 350 + quip.headline.length * 12)} />
+      </h3>
+      <div className="label mt-3 text-[9.5px] text-dim">
+        {n} {n === 1 ? 'title' : 'titles'} <span className="mx-1.5 text-rule">/</span> {fmtDur(cluster.minutes)}
+        {cluster.spanDays > 1 && (
+          <>
+            <span className="mx-1.5 text-rule">/</span> {cluster.spanDays} days
+          </>
+        )}
+      </div>
+      {quip.aside && <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-fog">{quip.aside}</p>}
+      {intensity && (
+        <div className="mt-3 flex items-center gap-2.5">
+          <span className="flex items-end gap-[3px]" aria-hidden>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <motion.span
+                key={i}
+                className={`w-[3px] ${i < intensity.bars ? 'bg-blood' : 'bg-line'}`}
+                initial={{ height: 3 }}
+                whileInView={{ height: i < intensity.bars ? 5 + i * 2.5 : 3 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.3 + i * 0.07, type: 'spring', stiffness: 260, damping: 18 }}
+              />
+            ))}
+          </span>
+          <span className="label text-[9px] text-dim">{intensity.label}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* poster with a HUD tag that appears (and scales with it) on hover */
+function HudPoster({ entry, onSelect, scale }: { entry: Entry; onSelect: (e: Entry) => void; scale: number }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onSelect(entry)}
+      aria-label={`${entry.title}${entry.year ? ` (${entry.year})` : ''}`}
+      whileHover={{ scale, zIndex: 60 }}
+      whileTap={{ scale: scale * 0.96 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+      className="group relative block h-full w-full cursor-pointer"
+      style={{ zIndex: 2 }}
+    >
+      <Poster entry={entry} className="h-full w-full outline outline-1 -outline-offset-1 outline-white/10" />
+      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100" aria-hidden>
+        <span className="absolute -left-[3px] -top-[3px] h-2 w-2 border-l border-t border-blood" />
+        <span className="absolute -right-[3px] -top-[3px] h-2 w-2 border-r border-t border-blood" />
+        <span className="absolute -bottom-[3px] -left-[3px] h-2 w-2 border-b border-l border-blood" />
+        <span className="absolute -bottom-[3px] -right-[3px] h-2 w-2 border-b border-r border-blood" />
+        <span className="absolute left-0 top-full mt-[3px] block max-w-[160%] truncate whitespace-nowrap bg-ink px-[3px] py-[1px] text-left font-tele text-[5.5px] uppercase leading-tight tracking-[0.08em] text-bone">
+          {entry.title}
+          <span className="block text-dim">
+            {entry.year ?? '—'} · {entry.type === 'movie' ? 'film' : `${entry.episodes ?? '—'} ep`} · {fmtDur(watchMinutes(entry))}
+          </span>
+        </span>
+      </span>
+    </motion.button>
+  );
+}
+
+function Anchor({ x, y, setRef }: { x: number; y: number; setRef: (el: HTMLSpanElement | null) => void }) {
+  return (
+    <div className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${x / 10}%`, top: y }}>
+      <span
+        ref={setRef}
+        data-lit="false"
+        className="group/anchor relative flex h-3 w-3 items-center justify-center rounded-full border border-rule bg-ink transition-colors duration-300 data-[lit=true]:border-blood"
+      >
+        <span className="h-1 w-1 rounded-full bg-rule transition-colors duration-300 group-data-[lit=true]/anchor:bg-blood" />
+        <span className="absolute inset-[-7px] rounded-full border border-blood opacity-0 transition-all duration-500 group-data-[lit=true]/anchor:inset-[-4px] group-data-[lit=true]/anchor:opacity-40" />
+      </span>
+    </div>
+  );
+}
+
+/* corner brackets that frame a knot once it bursts */
+function Brackets({ w, h, on, label }: { w: number; h: number; on: boolean; label: string }) {
+  const c = 'absolute h-3 w-3 border-bone/40';
+  return (
+    <motion.div
+      className="pointer-events-none absolute"
+      style={{ left: -w / 2, top: -h / 2, width: w, height: h }}
+      initial={{ opacity: 0, scale: 1.08 }}
+      animate={on ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 1.08 }}
+      transition={{ duration: 0.6, delay: 0.25, ease: EASE }}
+      aria-hidden
+    >
+      <span className={`${c} left-0 top-0 border-l border-t`} />
+      <span className={`${c} right-0 top-0 border-r border-t`} />
+      <span className={`${c} bottom-0 left-0 border-b border-l`} />
+      <span className={`${c} bottom-0 right-0 border-b border-r`} />
+      <span className="absolute -top-4 left-0 font-tele text-[8.5px] tracking-[0.18em] text-dim">{label}</span>
+    </motion.div>
+  );
+}
+
+/* a small knot: posters fan open, wired back to the track */
+function FanNode({
   node,
+  index,
   pw,
+  order,
   onSelect,
+  setAnchor,
 }: {
   node: Node;
+  index: number;
   pw: number;
+  order: Order;
   onSelect: (e: Entry) => void;
+  setAnchor: (el: HTMLSpanElement | null) => void;
 }) {
   const { cluster, x, y, side } = node;
   const items = cluster.items;
   const n = items.length;
-  const step = pw * 0.62;
   const ph = pw * 1.5;
+  const step = n > 1 ? Math.min(pw * 0.62, 380 / (n - 1)) : 0;
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: '-26% 0px -26% 0px', once: true });
-  const intensity = intensityFor(n);
+  const inView = useInView(ref, { margin: '-22% 0px -22% 0px', once: true });
+  const lift = ph / 2 + 56; // fan centre sits this far above the anchor
+  const spread = ((n - 1) / 2) * step;
 
   return (
     <>
-      {/* anchor dot on the track */}
-      <div
-        className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-        style={{ left: `${x / 10}%`, top: y }}
-      >
-        <span className="relative flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-blood bg-ink shadow-[0_0_14px_rgba(229,9,20,0.75)]">
-          <span className="h-1 w-1 rounded-full bg-blood" />
-        </span>
-      </div>
-
-      {/* caption block on the opposite side */}
+      <Anchor x={x} y={y} setRef={setAnchor} />
       <div
         className="absolute w-[34%] min-w-[240px] max-w-[380px]"
-        style={{
-          top: y - ph - 44,
-          ...(side === 'l' ? { left: '57%' } : { right: '57%', textAlign: 'left' }),
-        }}
+        style={{ top: y - ph - 60, ...(side === 'l' ? { left: '57%' } : { right: '57%' }) }}
       >
         <motion.div
-          initial={{ opacity: 0, x: side === 'l' ? 24 : -24 }}
+          initial={{ opacity: 0, x: side === 'l' ? 20 : -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-20% 0px' }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.6, ease: EASE }}
         >
-          <div className="flex items-center gap-2.5 font-tele text-[10px] tracking-[0.28em] text-fog">
-            <span className="h-0.5 w-5 bg-blood" />
-            {fmtMonth(cluster.startTs).toUpperCase()}
-          </div>
-          <h3 className="mt-3 text-[26px] font-semibold leading-[1.12] tracking-tight text-bone sm:text-[30px]">
-            {headlineFor(n)}
-          </h3>
-          <div className="mt-3 font-tele text-[11px] tracking-[0.14em] text-dim">
-            {n} {n === 1 ? 'story' : 'stories'} <span className="mx-1.5 text-line">·</span> {fmtDur(cluster.minutes)}
-          </div>
-          {intensity && (
-            <div className="mt-3 flex items-center gap-2.5">
-              <span className="flex items-end gap-[3px]">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <motion.span
-                    key={i}
-                    className="w-[3px]"
-                    initial={{ height: 4 }}
-                    whileInView={{ height: i < intensity.bars ? 6 + i * 2.5 : 4 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.3 + i * 0.07, type: 'spring', stiffness: 260, damping: 18 }}
-                    style={{ background: i < intensity.bars ? '#e50914' : '#26262b' }}
-                  />
-                ))}
-              </span>
-              <span className="font-tele text-[9px] tracking-[0.24em] text-dim">{intensity.label}</span>
-            </div>
-          )}
+          <Caption cluster={cluster} order={order} index={index} />
         </motion.div>
       </div>
-
-      {/* the fan — posters knot up, then detonate open */}
-      <div
-        ref={ref}
-        className="absolute"
-        style={{ left: `${x / 10}%`, top: y - ph / 2 - 30, width: 2, height: 2, marginLeft: -1, marginTop: -1 }}
-      >
-        {/* density glow behind knots */}
-        {n > 1 && (
-          <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood/10 blur-3xl"
-            style={{ width: pw * (1.4 + n * 0.35), height: pw * 1.6 }}
-          />
-        )}
+      <div ref={ref} className="absolute h-0.5 w-0.5" style={{ left: `${x / 10}%`, top: y - lift }}>
+        {/* wires from the anchor to each poster */}
+        <svg className="pointer-events-none absolute overflow-visible" style={{ left: 0, top: 0 }} width={1} height={1} aria-hidden>
+          {items.map((e, i) => {
+            const k = i - (n - 1) / 2;
+            return (
+              <motion.line
+                key={e.id}
+                x1={0}
+                y1={lift}
+                x2={k * step}
+                y2={k * k * 3 + ph / 2}
+                stroke="var(--color-blood)"
+                strokeOpacity={0.55}
+                strokeWidth={1}
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: inView ? 1 : 0 }}
+                transition={{ duration: 0.5, delay: 0.05 * i, ease: EASE }}
+              />
+            );
+          })}
+        </svg>
+        {n > 1 && <Brackets w={spread * 2 + pw + 48} h={ph + 48 + spread * 0.25} on={inView} label={`${n} × ${fmtDur(cluster.minutes)}`} />}
         {items.map((e, i) => {
           const k = i - (n - 1) / 2;
           return (
@@ -181,15 +297,22 @@ function ClusterNode({
               key={e.id}
               className="absolute"
               style={{ left: -pw / 2, top: -ph / 2, width: pw, height: ph, zIndex: i + 1 }}
-              initial={{ x: 0, y: 14, rotate: 0, scale: 0.45, opacity: 0 }}
+              whileHover={{ zIndex: 60 }}
+              initial={{ x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0, clipPath: 'inset(100% 0 0 0)' }}
               animate={
                 inView
-                  ? { x: k * step, y: Math.abs(k) * Math.abs(k) * 3.2, rotate: k * 7.5, scale: 1, opacity: 1 }
-                  : { x: 0, y: 14, rotate: 0, scale: 0.45, opacity: 0 }
+                  ? { x: k * step, y: k * k * 3, rotate: k * 6.5, scale: 1, opacity: 1, clipPath: 'inset(0% 0 0 0)' }
+                  : { x: 0, y: 30, rotate: 0, scale: 0.4, opacity: 0, clipPath: 'inset(100% 0 0 0)' }
               }
-              transition={{ type: 'spring', stiffness: 170, damping: 19, delay: 0.09 * i }}
+              transition={{
+                type: 'spring',
+                stiffness: 170,
+                damping: 20,
+                delay: 0.15 + 0.07 * i,
+                clipPath: { duration: 0.5, delay: 0.15 + 0.07 * i, ease: EASE },
+              }}
             >
-              <ZoomPoster entry={e} onClick={onSelect} hoverScale={1.75} className="h-full w-full" posterClass="h-full w-full" />
+              <HudPoster entry={e} onSelect={onSelect} scale={1.7} />
             </motion.div>
           );
         })}
@@ -198,231 +321,251 @@ function ClusterNode({
   );
 }
 
+/* a big cluster: laid out flat as a contact sheet, swept by a scan line */
+function SheetNode({
+  node,
+  index,
+  order,
+  expanded,
+  onToggle,
+  onSelect,
+  setAnchor,
+}: {
+  node: Node;
+  index: number;
+  order: Order;
+  expanded: boolean;
+  onToggle: () => void;
+  onSelect: (e: Entry) => void;
+  setAnchor: (el: HTMLSpanElement | null) => void;
+}) {
+  const { cluster, x, y } = node;
+  const sheet = node.sheet!;
+  const more = cluster.size - sheet.shown;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(gridRef, { once: true, margin: '-15% 0px' });
+  return (
+    <>
+      <Anchor x={x} y={y} setRef={setAnchor} />
+      <div className="absolute inset-x-0 z-40 bg-ink" style={{ top: y + 30 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-15% 0px' }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="border-t border-line pt-5"
+        >
+          <Caption cluster={cluster} order={order} index={index} sheet />
+        </motion.div>
+        <div ref={gridRef} className="relative mt-6">
+          <div className="grid" style={{ gridTemplateColumns: `repeat(${sheet.cols}, ${sheet.thumb}px)`, gap: GAP, justifyContent: 'space-between' }}>
+            {cluster.items.slice(0, sheet.shown).map((e, i) => {
+              const row = Math.floor(i / sheet.cols);
+              const col = i % sheet.cols;
+              return (
+                <motion.div
+                  key={e.id}
+                  initial={{ opacity: 0, scale: 0.7, filter: 'grayscale(1) brightness(2)' }}
+                  animate={inView ? { opacity: 1, scale: 1, filter: 'grayscale(0) brightness(1)' } : undefined}
+                  transition={{ duration: 0.5, delay: Math.min(row + col, 40) * 0.035, ease: EASE }}
+                  whileHover={{ zIndex: 60 }}
+                  className="relative"
+                  style={{ width: sheet.thumb, height: sheet.thumb * 1.5 }}
+                >
+                  <HudPoster entry={e} onSelect={onSelect} scale={1.9} />
+                </motion.div>
+              );
+            })}
+          </div>
+          {inView && (
+            <motion.span
+              className="pointer-events-none absolute inset-x-0 z-[70] h-px bg-blood"
+              initial={{ top: '0%', opacity: 1 }}
+              animate={{ top: '100%', opacity: 0 }}
+              transition={{ duration: 1.1, ease: 'easeInOut' }}
+              aria-hidden
+            />
+          )}
+        </div>
+        {cluster.size > sheet.cols * SHEET_ROWS && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="label mt-5 flex h-9 cursor-pointer items-center border border-line px-4 text-fog transition-colors hover:border-rule hover:text-bone"
+          >
+            {expanded ? 'Fold the sheet' : `Show all ${cluster.size} — ${more} more`}
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ── the view ──────────────────────────────────────────────────────────── */
+
 export default function ClusterBurst({
   items,
   order,
-  onSelect,
-  hidden,
-  onHidden,
   dir,
-  onDir,
-  typeFilter,
-  onTypeFilter,
+  onSelect,
 }: {
   items: Entry[];
   order: Order;
+  dir: Dir;
   onSelect: (e: Entry) => void;
-  hidden: Set<number>;
-  onHidden: (fn: (prev: Set<number>) => Set<number>) => void;
-  dir: 'asc' | 'desc';
-  onDir: (d: 'asc' | 'desc') => void;
-  typeFilter: TypeFilter;
-  onTypeFilter: (t: TypeFilter) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
-  const isNarrow = width < 984 && window.matchMedia('(max-width: 1023px)').matches;
+  const isNarrow = width < NARROW;
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  /* year/decade filter + chronological direction are shared with The Reel
-     (lifted into App) so selections persist across view switches */
-  const groups = useMemo(() => groupByYear(items, order), [items, order]);
-  const decades = useMemo(() => decadeStats(groups), [groups]);
+  const clusters = useMemo(() => clusterize(items, order), [items, order]);
+  const ordered = useMemo(() => (dir === 'asc' ? clusters : [...clusters].reverse()), [clusters, dir]);
+  const pw = Math.max(92, Math.min(140, width * 0.12));
+  const geo = useMemo(() => buildGeo(ordered, order, width, pw, expanded), [ordered, order, width, pw, expanded]);
+  const yearInfo = useMemo(() => {
+    const m = new Map<number, { n: number; min: number }>();
+    for (const c of clusters) {
+      const y = yearOf(c.items[0], order);
+      const r = m.get(y) ?? { n: 0, min: 0 };
+      r.n += c.size;
+      r.min += c.minutes;
+      m.set(y, r);
+    }
+    return m;
+  }, [clusters, order]);
 
-  const filtered = useMemo(
-    () => items.filter((e) => !hidden.has(new Date(sortKey(e, order)).getFullYear())),
-    [items, hidden, order],
-  );
-  const clusters = useMemo(() => clusterize(filtered, order), [filtered, order]);
-  const ordered = useMemo(
-    () => (dir === 'asc' ? clusters : [...clusters].reverse()),
-    [clusters, dir],
-  );
-  const geo = useMemo(() => buildGeo(ordered), [ordered]);
-  const nights = useMemo(() => new Set(filtered.map((i) => i.addedAt)).size, [filtered]);
-
-  const toggleYear = useCallback(
-    (y: number) => {
-      onHidden((h) => {
-        const n = new Set(h);
-        if (n.has(y)) n.delete(y);
-        else n.add(y);
-        return n;
-      });
-    },
-    [onHidden],
-  );
-
-  const toggleDecade = useCallback(
-    (d: number) => {
-      onHidden((h) => {
-        const n = new Set(h);
-        const ys = groups.filter((g) => Math.floor(g.year / 10) * 10 === d).map((g) => g.year);
-        const allIn = ys.every((y) => !n.has(y));
-        ys.forEach((y) => (allIn ? n.add(y) : n.delete(y)));
-        return n;
-      });
-    },
-    [groups, onHidden],
-  );
-  const pw = Math.max(92, Math.min(150, width * 0.13));
-
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.6'] });
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.6', 'end 0.6'] });
   const progress = useSpring(scrollYProgress, { stiffness: 110, damping: 27, restDelta: 0.0004 });
 
-  /* playhead riding the track */
+  /* the playhead: rides the track, lights anchors it has passed and reads
+     out the date + running count of wherever it is */
   const pathRef = useRef<SVGPathElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
+  const dateRef = useRef<HTMLSpanElement>(null);
+  const countRef = useRef<HTMLSpanElement>(null);
+  const anchors = useRef<Array<HTMLSpanElement | null>>([]);
   const lenRef = useRef(0);
-  useEffect(() => {
-    if (!pathRef.current || !dotRef.current) return;
-    lenRef.current = pathRef.current.getTotalLength();
-    const pt = pathRef.current.getPointAtLength(0);
-    dotRef.current.style.left = `${pt.x / 10}%`;
-    dotRef.current.style.top = `${pt.y}px`;
-  }, [geo.d, isNarrow]);
-  useMotionValueEvent(progress, 'change', (v) => {
+  const place = (v: number) => {
     if (!pathRef.current || !dotRef.current || !lenRef.current) return;
     const pt = pathRef.current.getPointAtLength(Math.min(1, Math.max(0, v)) * lenRef.current);
-    dotRef.current.style.left = `${pt.x / 10}%`;
+    dotRef.current.style.left = `${pt.x}px`;
     dotRef.current.style.top = `${pt.y}px`;
-  });
+    let idx = -1;
+    for (let i = 0; i < geo.nodes.length && geo.nodes[i].y <= pt.y + 2; i++) idx = i;
+    anchors.current.forEach((el, i) => el && (el.dataset.lit = String(i <= idx)));
+    const node = geo.nodes[Math.max(0, idx)];
+    if (node && dateRef.current && countRef.current) {
+      const d = new Date(node.cluster.startTs);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dateRef.current.textContent = idx < 0 ? 'STANDBY' : fmtDate(iso).replace(/ /g, '·');
+      countRef.current.textContent = `${String(idx < 0 ? 0 : node.seen).padStart(3, '0')}/${String(items.length).padStart(3, '0')}`;
+    }
+  };
+  useEffect(() => {
+    if (!pathRef.current) return;
+    lenRef.current = pathRef.current.getTotalLength();
+    place(progress.get());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo, isNarrow]);
+  useMotionValueEvent(progress, 'change', place);
+
+  const toggle = (key: string) =>
+    setExpanded((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
 
   return (
-    <div>
-      {/* view header */}
-      <div className="mx-auto max-w-6xl px-5">
-      <div className="flex flex-wrap items-end justify-between gap-6 pb-10 pt-16">
-        <div className="chrome-orig">
-          <div className="font-tele text-[10px] font-medium tracking-[0.42em] text-blood">VIEW 01</div>
-          <h2 className="mt-2 font-display text-6xl uppercase leading-none tracking-wide text-bone sm:text-7xl">
-            Cluster <span className="text-outline-blood">&</span> Burst
-          </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-fog">
-            {nights} nights, one track. A lone poster means a quiet evening — a knot
-            means a binge. Scroll through it: dense stretches blow open.
-          </p>
+    <div className="relative">
+      {/* the constellation rides along behind the whole track */}
+      {!isNarrow && (
+        <div className="pointer-events-none sticky top-0 z-0 -mb-[100vh] h-screen opacity-80">
+          <Plexus />
         </div>
-        <div className="flex flex-col items-start gap-4 pb-1 sm:items-end">
-          {/* chronological direction */}
-          <div className="chrome-orig flex items-center gap-2.5">
-            <span className="font-tele text-[9px] tracking-[0.3em] text-dim">CHRONO</span>
-            <div className="flex overflow-hidden rounded-full border border-line">
-              <button
-                type="button"
-                onClick={() => onDir('asc')}
-                className={`flex cursor-pointer items-center gap-1.5 px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
-                  dir === 'asc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
-                }`}
-              >
-                <ArrowUp size={10} className={dir === 'asc' ? 'text-blood' : ''} /> OLDEST
-              </button>
-              <button
-                type="button"
-                onClick={() => onDir('desc')}
-                className={`flex cursor-pointer items-center gap-1.5 border-l border-line px-3 py-1.5 font-tele text-[9px] tracking-[0.18em] transition-colors duration-200 ${
-                  dir === 'desc' ? 'bg-blood/15 text-bone' : 'text-dim hover:text-fog'
-                }`}
-              >
-                <ArrowDown size={10} className={dir === 'desc' ? 'text-blood' : ''} /> NEWEST
-              </button>
-            </div>
-          </div>
+      )}
+      <div className="relative z-10 mx-auto max-w-6xl px-4 pb-10 sm:px-5">
+        <div ref={ref} className="relative" style={{ height: isNarrow ? 'auto' : geo.H }}>
+          {isNarrow ? (
+            <MobileTrack clusters={ordered} order={order} onSelect={onSelect} />
+          ) : (
+            <>
+              <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${geo.H}`} fill="none" aria-hidden>
+                <path d={geo.d} stroke="#3a3a42" strokeWidth={1} strokeDasharray="2 7" className="track-flow" />
+                <motion.path ref={pathRef} d={geo.d} stroke="#ff4533" strokeWidth={1.5} style={{ pathLength: progress }} />
+              </svg>
 
-          <div className="space-y-1.5 font-tele text-[9px] tracking-[0.22em] text-dim">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-fog" /> SINGLE — QUIET STRETCH
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-blood shadow-[0_0_8px_rgba(229,9,20,0.9)]" /> KNOT — BINGE DENSITY
-            </div>
-          </div>
+              {/* HUD playhead */}
+              <div ref={dotRef} className="absolute z-30 -translate-x-1/2 -translate-y-1/2" style={{ left: `${geo.nodes[0]?.x / 10}%`, top: 0 }} aria-hidden>
+                <span className="relative block h-7 w-7">
+                  <svg viewBox="0 0 28 28" className="spin-slow absolute inset-0">
+                    <circle cx="14" cy="14" r="12.5" fill="none" stroke="var(--color-blood)" strokeWidth="1" strokeDasharray="3 4" />
+                  </svg>
+                  <span className="absolute left-1/2 top-0 h-1.5 w-px -translate-x-1/2 bg-blood" />
+                  <span className="absolute bottom-0 left-1/2 h-1.5 w-px -translate-x-1/2 bg-blood" />
+                  <span className="absolute left-0 top-1/2 h-px w-1.5 -translate-y-1/2 bg-blood" />
+                  <span className="absolute right-0 top-1/2 h-px w-1.5 -translate-y-1/2 bg-blood" />
+                  <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blood" />
+                </span>
+                <span className="absolute left-9 top-1/2 flex -translate-y-1/2 items-center gap-2 whitespace-nowrap border border-line bg-ink px-2 py-1 font-tele text-[9px] tracking-[0.14em]">
+                  <span className="blink h-1 w-1 bg-blood" />
+                  <span ref={dateRef} className="text-bone">STANDBY</span>
+                  <span className="text-rule">|</span>
+                  <span ref={countRef} className="tabular-nums text-dim">000/000</span>
+                </span>
+              </div>
+
+              {geo.breaks.map((b) => {
+                const info = yearInfo.get(b.year);
+                return (
+                  <motion.div
+                    key={b.year}
+                    className={`absolute flex items-end gap-4 ${b.align === 'right' ? 'right-0 flex-row-reverse text-right' : 'left-0'}`}
+                    style={{ top: b.y }}
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-15% 0px' }}
+                    transition={{ duration: 0.7, ease: EASE }}
+                  >
+                    <ScrambleText text={String(b.year)} duration={600} className="font-display text-[112px] font-extrabold leading-[0.8] text-bone" />
+                    {info && (
+                      <span className="label mb-1 text-[9px] leading-relaxed text-dim">
+                        {info.n} titles
+                        <br />
+                        {fmtInt(info.min / 60)} hours
+                      </span>
+                    )}
+                  </motion.div>
+                );
+              })}
+
+              {geo.nodes.map((n, i) =>
+                n.sheet ? (
+                  <SheetNode
+                    key={n.cluster.key}
+                    node={n}
+                    index={i}
+                    order={order}
+                    expanded={expanded.has(n.cluster.key)}
+                    onToggle={() => toggle(n.cluster.key)}
+                    onSelect={onSelect}
+                    setAnchor={(el) => (anchors.current[i] = el)}
+                  />
+                ) : (
+                  <FanNode key={n.cluster.key} node={n} index={i} pw={pw} order={order} onSelect={onSelect} setAnchor={(el) => (anchors.current[i] = el)} />
+                ),
+              )}
+
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 bg-ink px-6 text-center">
+                <div className="font-display text-5xl font-extrabold tracking-[0.3em] text-rule">FIN</div>
+                <div className="label mt-2 text-[9px] text-dim">{items.length} titles · to be continued</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    </div>
-
-    <ChipsBar
-      groups={groups}
-      decades={decades}
-      hidden={hidden}
-      onToggleYear={toggleYear}
-      onToggleDecade={toggleDecade}
-      onAll={() => onHidden(() => new Set())}
-      typeFilter={typeFilter}
-      onTypeFilter={onTypeFilter}
-      label="TRACK FILTER"
-      hint="TRACK SHORTENS LIVE"
-    />
-
-    <div className="mx-auto max-w-6xl px-5">
-
-      {/* the track */}
-      <div ref={ref} className="relative" style={{ height: isNarrow ? 'auto' : geo.H }}>
-        {!filtered.length ? (
-          <div className="py-24 text-center">
-            <h3 className="font-display text-4xl text-dim">Track empty</h3>
-            <p className="mt-3 text-sm text-fog">No titles match your filters.</p>
-            <button className="mt-5 border border-blood px-5 py-3 font-tele text-xs text-bone" onClick={() => { onHidden(() => new Set()); onTypeFilter('all'); }}>RESET FILTERS</button>
-          </div>
-        ) : isNarrow ? <MobileTrack clusters={ordered} onSelect={onSelect} /> : <>
-        <svg
-          className="absolute inset-0 h-full w-full"
-          viewBox={`0 0 ${VB_W} ${geo.H}`}
-          preserveAspectRatio="none"
-          fill="none"
-        >
-          <path d={geo.d} stroke="#26262b" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <motion.path
-            ref={pathRef}
-            d={geo.d}
-            stroke="#e50914"
-            strokeWidth={2}
-            vectorEffect="non-scaling-stroke"
-            style={{ pathLength: progress, filter: 'drop-shadow(0 0 6px rgba(229,9,20,0.55))' }}
-          />
-        </svg>
-
-        {/* playhead */}
-        <div ref={dotRef} className="absolute z-20 -translate-x-1/2 -translate-y-1/2" style={{ left: `${geo.nodes[0].x / 10}%`, top: 0 }}>
-          <span className="relative flex h-4 w-4 items-center justify-center">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blood/50" />
-            <span className="relative h-2.5 w-2.5 rounded-full bg-ember shadow-[0_0_14px_rgba(255,43,56,0.95)]" />
-          </span>
-          <span className="flicker absolute left-5 top-1/2 -translate-y-1/2 font-tele text-[9px] tracking-[0.3em] text-ember">
-            NOW
-          </span>
-        </div>
-
-        {geo.breaks.map((b) => (
-          <motion.div
-            key={b.year}
-            className={`absolute flex items-center gap-4 ${b.align === 'right' ? 'right-4 flex-row-reverse sm:right-8' : 'left-4 sm:left-8'}`}
-            style={{ top: b.y }}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-15% 0px' }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <span className="font-display text-7xl leading-none text-bone sm:text-8xl">{b.year}</span>
-            <span className="flex items-center gap-3 font-tele text-[9px] tracking-[0.34em] text-dim">
-              <span className="h-px w-10 bg-line" /> A NEW CHAPTER
-            </span>
-          </motion.div>
-        ))}
-
-        {geo.nodes.map((n, i) => (
-          <ClusterNode key={i} node={n} pw={pw} onSelect={onSelect} />
-        ))}
-
-        {/* end card */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
-          <div className="font-display text-5xl tracking-[0.2em] text-dim">FIN</div>
-          <div className="mt-2 font-tele text-[9px] tracking-[0.3em] text-dim">
-            {filtered.length} TITLES · TO BE CONTINUED
-          </div>
-        </div>
-        </>}
-      </div>
-    </div>
     </div>
   );
 }

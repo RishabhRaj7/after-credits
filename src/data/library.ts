@@ -1,33 +1,40 @@
+import baked from '../../data/baked-library.json';
+
 /* ── types ─────────────────────────────────────────────────────────────── */
 
 export type EntryType = 'movie' | 'show';
 export type Order = 'watch' | 'release';
+export type TypeFilter = 'all' | 'movie' | 'show';
+export type Dir = 'asc' | 'desc';
 
 export interface Entry {
   id: string;
   type: EntryType;
   title: string;
   year: number | null;
-  addedAt: string; // ISO date — watch-order proxy
+  addedAt: string; // ISO date — the watch-order proxy
   releaseDate: string | null;
   favorite?: boolean;
   runtimeMinutes?: number; // movies
   episodes?: number; // shows
-  episodeRuntime?: number; // shows (≈)
+  episodeRuntime?: number; // shows
   episodesEstimated?: boolean;
-  poster?: string; // tmdb path (no slash)
+  poster?: string; // local path ("posters/x.jpg"), full url, or bare TMDB id
   overview?: string;
   genres?: string[];
 }
 
+export type ClusterKind = 'single' | 'run' | 'binge' | 'backlog';
+
 export interface Cluster {
+  key: string;
   items: Entry[];
   startTs: number;
   endTs: number;
   spanDays: number;
   size: number;
   minutes: number;
-  binge: boolean;
+  kind: ClusterKind;
 }
 
 export interface YearGroup {
@@ -43,76 +50,83 @@ export interface DecadeStat {
   years: number[];
 }
 
-export interface GenreCount {
+export interface GenreStat {
   name: string;
   count: number;
+  films: number;
+  series: number;
+  minutes: number;
 }
 
-/* ── the library ──────────────────────────────────────────────────────────
-   `data/baked-library.json` is the committed source of truth — produced by
-   `node scripts/bake.mjs` from your CSV (posters downloaded alongside into
-   public/posters/). When it's empty the bundled sample below stands in. */
+/* ── genres ────────────────────────────────────────────────────────────────
+   TMDB files TV and film genres under different names ("Sci-Fi & Fantasy"
+   for shows, "Science Fiction" for films). Fold both into one vocabulary so
+   a genre is counted once on the dial. */
 
-import bakedJson from '../../data/baked-library.json';
+const GENRE_ALIASES: Record<string, string[]> = {
+  'Action & Adventure': ['Action', 'Adventure'],
+  'Sci-Fi & Fantasy': ['Sci-Fi', 'Fantasy'],
+  'Science Fiction': ['Sci-Fi'],
+  'War & Politics': ['War', 'Politics'],
+  Kids: ['Family'],
+};
 
-const E = (e: Entry) => e;
+export function normalizeGenres(list?: string[]): string[] | undefined {
+  if (!list?.length) return list;
+  const out = new Set<string>();
+  for (const g of list) for (const n of GENRE_ALIASES[g] ?? [g]) out.add(n);
+  return [...out];
+}
 
-const SAMPLE_LIB: Entry[] = [
-  E({ id: 'interstellar', type: 'movie', title: 'Interstellar', year: 2014, addedAt: '2019-02-11', releaseDate: '2014-11-05', runtimeMinutes: 169, favorite: true, poster: 'gEU2QniE6E77NI6lCU6MxlNBvIx', genres: ['Sci-Fi', 'Drama', 'Adventure'], overview: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity’s survival as Earth quietly dies.' }),
-  E({ id: 'inception', type: 'movie', title: 'Inception', year: 2010, addedAt: '2019-02-12', releaseDate: '2010-07-15', runtimeMinutes: 148, genres: ['Sci-Fi', 'Thriller'], overview: 'A thief who steals corporate secrets through dream-sharing technology is given the inverse task: planting an idea.' }),
-  E({ id: 'get-out', type: 'movie', title: 'Get Out', year: 2017, addedAt: '2019-06-21', releaseDate: '2017-02-24', runtimeMinutes: 104, poster: 'tFXcEccSQMf3lfhfXKSU9iRBpa3', genres: ['Horror', 'Thriller'] }),
-  E({ id: 'shawshank', type: 'movie', title: 'The Shawshank Redemption', year: 1994, addedAt: '2019-11-03', releaseDate: '1994-09-23', runtimeMinutes: 142, poster: 'q6y0Go1tsGEsmtFryDOJo3dEmqu', genres: ['Drama'] }),
+/* the same title under a different id (a CSV row without a TMDB id, a
+   manual edit) is still the same title: type + normalised name + year */
+export function identity(e: Pick<Entry, 'type' | 'title' | 'year'>): string {
+  return `${e.type}|${e.title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '')}|${e.year ?? ''}`;
+}
 
-  E({ id: 'dark-knight', type: 'movie', title: 'The Dark Knight', year: 2008, addedAt: '2020-02-14', releaseDate: '2008-07-16', runtimeMinutes: 152, favorite: true, poster: 'qJ2tW6WMUDux911r6m7haRef0WH', genres: ['Action', 'Crime', 'Drama'], overview: 'When the menace known as the Joker wreaks havoc on Gotham, Batman must accept one of the greatest psychological tests of his ability to fight injustice.' }),
-  E({ id: 'the-matrix', type: 'movie', title: 'The Matrix', year: 1999, addedAt: '2020-02-15', releaseDate: '1999-03-31', runtimeMinutes: 136, poster: 'f89U3ADr1oiB1s9GkdPOEpXUk5H', genres: ['Sci-Fi', 'Action'] }),
-  E({ id: 'fight-club', type: 'movie', title: 'Fight Club', year: 1999, addedAt: '2020-02-15', releaseDate: '1999-10-15', runtimeMinutes: 139, poster: 'pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK', genres: ['Drama', 'Thriller'] }),
-  E({ id: 'godfather', type: 'movie', title: 'The Godfather', year: 1972, addedAt: '2020-02-16', releaseDate: '1972-03-24', runtimeMinutes: 175, poster: '3bhkrj58Vtu7enYsRolD1fZdja1', genres: ['Crime', 'Drama'] }),
-  E({ id: 'jojo-rabbit', type: 'movie', title: 'Jojo Rabbit', year: 2019, addedAt: '2020-08-09', releaseDate: '2019-10-18', runtimeMinutes: 108, poster: '7GsM4mtM0worCtIVeiQt28HieeN', genres: ['Comedy', 'Drama', 'War'] }),
-  E({ id: 'la-la-land', type: 'movie', title: 'La La Land', year: 2016, addedAt: '2020-11-22', releaseDate: '2016-12-09', runtimeMinutes: 128, poster: 'uDO8zWDhfWwoFdKS4fzkUJt0Rf0', genres: ['Romance', 'Drama', 'Music'] }),
+/* one entry per id and per identity; later entries win */
+export function dedupe(entries: Entry[]): Entry[] {
+  const out: Entry[] = [];
+  const at = new Map<string, number>();
+  for (const e of entries) {
+    const i = at.get(`id:${e.id}`) ?? at.get(`t:${identity(e)}`);
+    if (i === undefined) {
+      at.set(`id:${e.id}`, out.length);
+      at.set(`t:${identity(e)}`, out.length);
+      out.push(e);
+    } else {
+      out[i] = e;
+      at.set(`id:${e.id}`, i);
+      at.set(`t:${identity(e)}`, i);
+    }
+  }
+  return out;
+}
 
-  E({ id: 'dune', type: 'movie', title: 'Dune', year: 2021, addedAt: '2021-02-05', releaseDate: '2021-09-15', runtimeMinutes: 155, favorite: true, poster: 'd5NXSklXo0qyIYkgV94XAgMIckC', genres: ['Sci-Fi', 'Adventure'], overview: 'Paul Atreides, a brilliant young heir to a noble house, is drawn to the desert planet Arrakis — the most dangerous place in the universe.' }),
-  E({ id: 'stranger-things', type: 'show', title: 'Stranger Things', year: 2016, addedAt: '2021-02-06', releaseDate: '2016-07-15', episodes: 8, episodeRuntime: 51, episodesEstimated: true, poster: '49WJfeN0moxb9IPfGn8AIqMGskD', genres: ['Sci-Fi', 'Horror', 'Drama'] }),
-  E({ id: 'grand-budapest', type: 'movie', title: 'The Grand Budapest Hotel', year: 2014, addedAt: '2021-02-07', releaseDate: '2014-03-07', runtimeMinutes: 99, poster: 'eWdyYQreja6JGCzqHWXpWHDrrPo', genres: ['Comedy', 'Drama'] }),
-  E({ id: 'memento', type: 'movie', title: 'Memento', year: 2000, addedAt: '2021-02-07', releaseDate: '2000-10-11', runtimeMinutes: 113, poster: 'yuNs09hvpHVU1cBTCAk9zxsL2oW', genres: ['Mystery', 'Thriller'] }),
-  E({ id: 'mad-max-fr', type: 'movie', title: 'Mad Max: Fury Road', year: 2015, addedAt: '2021-07-18', releaseDate: '2015-05-13', runtimeMinutes: 120, poster: '8tZYtuWezp8JbcsvHYO0O46tFbo', genres: ['Action', 'Adventure'] }),
-  E({ id: 'joker', type: 'movie', title: 'Joker', year: 2019, addedAt: '2021-10-30', releaseDate: '2019-10-02', runtimeMinutes: 122, poster: 'udDclJoHjfjb8Ekgsd4FDteOkCU', genres: ['Drama', 'Thriller'] }),
+/* every library source (baked, server, browser, fresh import) passes through here */
+export function prepareLibrary(entries: Entry[]): Entry[] {
+  return dedupe(entries.map((e) => ({ ...e, genres: normalizeGenres(e.genres) })));
+}
 
-  E({ id: 'the-batman', type: 'movie', title: 'The Batman', year: 2022, addedAt: '2022-04-19', releaseDate: '2022-03-01', runtimeMinutes: 176, favorite: true, poster: '74xTEgt7R36Fpooo50r9T25onhq', genres: ['Crime', 'Mystery'] }),
-  E({ id: 'severance', type: 'show', title: 'Severance', year: 2022, addedAt: '2022-06-03', releaseDate: '2022-02-18', episodes: 9, episodeRuntime: 50, episodesEstimated: true, favorite: true, genres: ['Drama', 'Mystery', 'Sci-Fi'], overview: 'Mark leads a team whose memories have been surgically divided between their work and personal lives — until a colleague goes missing.' }),
-  E({ id: 'eeaao', type: 'movie', title: 'Everything Everywhere All at Once', year: 2022, addedAt: '2022-06-04', releaseDate: '2022-03-25', runtimeMinutes: 139, poster: 'w3LxiVYdWWRvEVdn5RYq6jIqkb1', genres: ['Sci-Fi', 'Comedy', 'Drama'] }),
-  E({ id: 'social-network', type: 'movie', title: 'The Social Network', year: 2010, addedAt: '2022-09-12', releaseDate: '2010-10-01', runtimeMinutes: 120, genres: ['Drama', 'Biography'] }),
-  E({ id: 'the-menu', type: 'movie', title: 'The Menu', year: 2022, addedAt: '2022-12-23', releaseDate: '2022-11-18', runtimeMinutes: 107, genres: ['Thriller', 'Comedy'] }),
-  E({ id: 'glass-onion', type: 'movie', title: 'Glass Onion', year: 2022, addedAt: '2022-12-23', releaseDate: '2022-11-23', runtimeMinutes: 139, genres: ['Mystery', 'Comedy'] }),
+/* `data/baked-library.json` is the committed source of truth — produced by
+   `node scripts/bake.mjs` from library.csv, posters alongside in public/posters/ */
+export const LIBRARY: Entry[] = prepareLibrary(baked as Entry[]);
 
-  E({ id: 'barbie', type: 'movie', title: 'Barbie', year: 2023, addedAt: '2023-07-21', releaseDate: '2023-07-19', runtimeMinutes: 114, favorite: true, poster: 'iuFNMS8U5cb6xfzi51Dbkovj7vM', genres: ['Comedy', 'Adventure'], overview: 'Barbie suffers a crisis that leads her to question her world and her existence.' }),
-  E({ id: 'oppenheimer', type: 'movie', title: 'Oppenheimer', year: 2023, addedAt: '2023-07-21', releaseDate: '2023-07-19', runtimeMinutes: 180, genres: ['Drama', 'Biography', 'History'], overview: 'The story of J. Robert Oppenheimer’s role in the development of the atomic bomb during World War II.' }),
-  E({ id: 'the-bear', type: 'show', title: 'The Bear', year: 2023, addedAt: '2023-08-14', releaseDate: '2022-06-23', episodes: 10, episodeRuntime: 30, episodesEstimated: true, genres: ['Drama', 'Comedy'] }),
-  E({ id: 'parasite', type: 'movie', title: 'Parasite', year: 2019, addedAt: '2023-10-07', releaseDate: '2019-05-30', runtimeMinutes: 132, favorite: true, genres: ['Thriller', 'Drama', 'Comedy'], overview: 'Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.' }),
-  E({ id: '1917', type: 'movie', title: '1917', year: 2019, addedAt: '2023-10-08', releaseDate: '2019-12-25', runtimeMinutes: 119, genres: ['War', 'Drama'] }),
-  E({ id: 'whiplash', type: 'movie', title: 'Whiplash', year: 2014, addedAt: '2023-11-19', releaseDate: '2014-10-10', runtimeMinutes: 107, genres: ['Drama', 'Music'], overview: 'A promising young drummer enrolls at a cut-throat music conservatory where his dreams of greatness are mentored by an instructor who will stop at nothing.' }),
+/* ── dates + formatting ────────────────────────────────────────────────── */
 
-  E({ id: 'shogun', type: 'show', title: 'Shōgun', year: 2024, addedAt: '2024-02-27', releaseDate: '2024-02-27', episodes: 10, episodeRuntime: 60, episodesEstimated: true, favorite: true, genres: ['Drama', 'History'], overview: 'In Japan in the year 1600, a mysterious European ship is shipwrecked in a fishing village, setting in motion events that will change the fate of a nation.' }),
-  E({ id: 'true-detective-nc', type: 'show', title: 'True Detective: Night Country', year: 2024, addedAt: '2024-02-28', releaseDate: '2024-01-14', episodes: 6, episodeRuntime: 55, episodesEstimated: true, genres: ['Crime', 'Mystery'] }),
-  E({ id: 'fallout', type: 'show', title: 'Fallout', year: 2024, addedAt: '2024-02-29', releaseDate: '2024-04-10', episodes: 8, episodeRuntime: 50, episodesEstimated: true, genres: ['Sci-Fi', 'Adventure'] }),
-  E({ id: 'ripley', type: 'show', title: 'Ripley', year: 2024, addedAt: '2024-03-01', releaseDate: '2024-04-04', episodes: 8, episodeRuntime: 50, episodesEstimated: true, genres: ['Thriller', 'Drama'] }),
-  E({ id: 'dune-part-two', type: 'movie', title: 'Dune: Part Two', year: 2024, addedAt: '2024-05-21', releaseDate: '2024-02-27', runtimeMinutes: 166, genres: ['Sci-Fi', 'Adventure'] }),
-  E({ id: 'chernobyl', type: 'show', title: 'Chernobyl', year: 2019, addedAt: '2024-08-11', releaseDate: '2019-05-06', episodes: 5, episodeRuntime: 65, episodesEstimated: true, genres: ['Drama', 'History'] }),
-  E({ id: 'queens-gambit', type: 'show', title: 'The Queen’s Gambit', year: 2020, addedAt: '2024-08-12', releaseDate: '2020-10-23', episodes: 7, episodeRuntime: 55, episodesEstimated: true, genres: ['Drama'] }),
-  E({ id: 'dark', type: 'show', title: 'Dark', year: 2017, addedAt: '2024-11-02', releaseDate: '2017-12-01', episodes: 10, episodeRuntime: 50, episodesEstimated: true, genres: ['Sci-Fi', 'Mystery', 'Thriller'] }),
-];
-
-export const LIBRARY: Entry[] =
-  (bakedJson as unknown as Entry[]).length > 0 ? (bakedJson as unknown as Entry[]) : SAMPLE_LIB;
-
-/* ── formatting ────────────────────────────────────────────────────────── */
-
-const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MONTHS_S = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+/* local midnight, so a date never slides a day across time zones */
+export function dayTs(iso: string): number {
+  return new Date(iso.slice(0, 10) + 'T00:00:00').getTime();
+}
 
 export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '——';
-  const d = new Date(iso + 'T00:00:00');
-  return `${MONTHS_S[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`.toUpperCase();
+  if (!iso) return '—';
+  const d = new Date(dayTs(iso));
+  return `${MONTHS_S[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')} ${d.getFullYear()}`;
 }
 
 export function fmtMonth(ts: number): string {
@@ -129,69 +143,96 @@ export function fmtDur(min: number): string {
   return `${Math.round(min)}m`;
 }
 
-export type TypeFilter = 'all' | 'movie' | 'show';
+export function fmtInt(n: number): string {
+  return Math.round(n).toLocaleString('en-US');
+}
 
-/* watch time with sensible fallbacks for incomplete rows:
-   movies default to 120 min; show episodes default to 40 min each */
+/* ── watch time ────────────────────────────────────────────────────────────
+   Films default to 120 min when TMDB has no runtime. Series without an
+   episode runtime fall back by format: animation and straight comedy run
+   half-hour episodes, everything else about an hour. */
+
+export const FILM_FALLBACK = 120;
+export const SHORT_EPISODE = 24;
+export const LONG_EPISODE = 45;
+
+export function episodeMinutes(e: Entry): number {
+  if (e.episodeRuntime) return e.episodeRuntime;
+  const g = e.genres ?? [];
+  return g.includes('Animation') || (g.includes('Comedy') && !g.includes('Drama'))
+    ? SHORT_EPISODE
+    : LONG_EPISODE;
+}
+
 export function watchMinutes(e: Entry): number {
-  if (e.type === 'movie') return e.runtimeMinutes ?? 120;
-  return (e.episodes ?? 0) * (e.episodeRuntime ?? 40);
+  if (e.type === 'movie') return e.runtimeMinutes ?? FILM_FALLBACK;
+  return (e.episodes ?? 0) * episodeMinutes(e);
+}
+
+export function isEstimated(e: Entry): boolean {
+  if (e.type === 'movie') return !e.runtimeMinutes;
+  return !e.episodes || !e.episodeRuntime || !!e.episodesEstimated;
 }
 
 export function factLine(e: Entry): string {
-  if (e.type === 'movie') return e.runtimeMinutes ? `${e.runtimeMinutes} MIN` : '— MIN';
-  const est = e.episodesEstimated ? ' · EST' : '';
-  return `${e.episodes ?? '—'} EP × ~${e.episodeRuntime ?? '—'} MIN${est}`;
+  if (e.type === 'movie') return e.runtimeMinutes ? `${e.runtimeMinutes} MIN` : `~${FILM_FALLBACK} MIN`;
+  const rt = e.episodeRuntime ? `${e.episodeRuntime}` : `~${episodeMinutes(e)}`;
+  return `${e.episodes ?? '—'} EP × ${rt} MIN`;
 }
 
+/* ── ordering ──────────────────────────────────────────────────────────── */
+
 export function sortKey(e: Entry, order: Order): number {
-  const iso = order === 'watch' ? e.addedAt : (e.releaseDate ?? e.addedAt);
-  return new Date(iso + 'T00:00:00').getTime();
+  return dayTs(order === 'watch' ? e.addedAt : (e.releaseDate ?? e.addedAt));
+}
+
+export function yearOf(e: Entry, order: Order): number {
+  return new Date(sortKey(e, order)).getFullYear();
 }
 
 export function sortedEntries(items: Entry[], order: Order): Entry[] {
-  return [...items].sort((a, b) => sortKey(a, order) - sortKey(b, order));
+  return [...items].sort((a, b) => sortKey(a, order) - sortKey(b, order) || a.title.localeCompare(b.title));
 }
 
 /* ── clustering (Cluster & Burst) ──────────────────────────────────────── */
 
 const DAY = 86400000;
 const CLUSTER_GAP = 2 * DAY; // entries ≤2 days apart knot together
+export const BACKLOG_MIN = 12; // this many logged within two days is catch-up, not a binge
 
 export function clusterize(items: Entry[], order: Order): Cluster[] {
-  const sorted = sortedEntries(items, order);
   const clusters: Cluster[] = [];
-  for (const e of sorted) {
+  for (const e of sortedEntries(items, order)) {
     const ts = sortKey(e, order);
     const last = clusters[clusters.length - 1];
     if (last && ts - last.endTs <= CLUSTER_GAP) {
       last.items.push(e);
       last.endTs = ts;
     } else {
-      clusters.push({ items: [e], startTs: ts, endTs: ts, spanDays: 1, size: 1, minutes: 0, binge: false });
+      clusters.push({ key: '', items: [e], startTs: ts, endTs: ts, spanDays: 1, size: 1, minutes: 0, kind: 'single' });
     }
   }
   for (const c of clusters) {
+    c.key = `${c.startTs}:${c.items[0].id}`;
     c.size = c.items.length;
     c.spanDays = Math.max(1, Math.round((c.endTs - c.startTs) / DAY) + 1);
     c.minutes = c.items.reduce((s, e) => s + watchMinutes(e), 0);
-    c.binge = c.size >= 3;
+    const perDay = new Map<number, number>();
+    for (const e of c.items) perDay.set(sortKey(e, order), (perDay.get(sortKey(e, order)) ?? 0) + 1);
+    c.kind =
+      c.size === 1 ? 'single'
+      : c.size < 3 ? 'run'
+      : Math.max(...perDay.values()) >= BACKLOG_MIN ? 'backlog'
+      : 'binge';
   }
   return clusters;
 }
 
-export function headlineFor(size: number): string {
-  if (size === 1) return 'Some stories deserve their own moment.';
-  if (size === 2) return 'Two in a row. Obviously.';
-  if (size === 3) return 'Three deep into the night.';
-  return 'Just one more. Then another.';
-}
-
-export function intensityFor(size: number): { bars: number; label: string } | null {
-  if (size < 3) return null;
-  if (size >= 6) return { bars: 5, label: 'FULL BINGE MODE' };
-  if (size >= 4) return { bars: 4, label: 'A LITTLE OBSESSED' };
-  return { bars: 3, label: 'IN TOO DEEP' };
+export function intensityFor(c: Cluster, order: Order): { bars: number; label: string } | null {
+  if (order !== 'watch' || c.kind !== 'binge') return null;
+  if (c.size >= 6) return { bars: 5, label: 'Full binge mode' };
+  if (c.size >= 4) return { bars: 4, label: 'A little obsessed' };
+  return { bars: 3, label: 'In too deep' };
 }
 
 /* ── year grouping (The Reel) ──────────────────────────────────────────── */
@@ -199,18 +240,13 @@ export function intensityFor(size: number): { bars: number; label: string } | nu
 export function groupByYear(items: Entry[], order: Order): YearGroup[] {
   const map = new Map<number, Entry[]>();
   for (const e of sortedEntries(items, order)) {
-    const ts = sortKey(e, order);
-    const y = new Date(ts).getFullYear();
+    const y = yearOf(e, order);
     if (!map.has(y)) map.set(y, []);
     map.get(y)!.push(e);
   }
   return [...map.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([year, list]) => ({
-      year,
-      items: list,
-      minutes: list.reduce((s, e) => s + watchMinutes(e), 0),
-    }));
+    .map(([year, list]) => ({ year, items: list, minutes: totalMinutes(list) }));
 }
 
 export function decadeStats(groups: YearGroup[]): DecadeStat[] {
@@ -230,80 +266,55 @@ export function totalMinutes(items: Entry[]): number {
   return items.reduce((s, e) => s + watchMinutes(e), 0);
 }
 
+/* ── headline stats ────────────────────────────────────────────────────── */
+
 export interface LibraryStats {
+  minutes: number;
   days: number;
   hours: number;
-  minutes: number;
+  films: number;
+  series: number;
+  titles: number;
+  genres: number;
   from: Date;
   to: Date;
-  movies: number;
-  shows: number;
-  entries: number;
 }
 
 export function statsFor(items: Entry[]): LibraryStats {
-  const min = totalMinutes(items);
-  const added = items
-    .map((e) => Date.parse(e.addedAt + 'T00:00:00Z'))
-    .filter((n) => !Number.isNaN(n));
-  const lo = added.length ? Math.min(...added) : Date.now();
-  const hi = added.length ? Math.max(...added) : Date.now();
+  const minutes = totalMinutes(items);
+  const added = items.map((e) => dayTs(e.addedAt)).filter((n) => !Number.isNaN(n));
+  const now = Date.now();
   return {
-    days: Math.floor(min / 1440),
-    hours: Math.floor((min % 1440) / 60),
-    minutes: min % 60,
-    from: new Date(lo),
-    to: new Date(hi),
-    movies: items.filter((e) => e.type === 'movie').length,
-    shows: items.filter((e) => e.type === 'show').length,
-    entries: items.length,
+    minutes,
+    days: Math.floor(minutes / 1440),
+    hours: Math.round(minutes / 60),
+    films: items.filter((e) => e.type === 'movie').length,
+    series: items.filter((e) => e.type === 'show').length,
+    titles: items.length,
+    genres: new Set(items.flatMap((e) => e.genres ?? [])).size,
+    from: new Date(added.length ? Math.min(...added) : now),
+    to: new Date(added.length ? Math.max(...added) : now),
   };
 }
 
-/* genre aggregation for the radial chart — counts titles, not appearances */
-export function genreCounts(entries: Entry[]): GenreCount[] {
-  const map = new Map<string, number>();
-  entries.forEach((e) =>
-    new Set(e.genres ?? []).forEach((g) => map.set(g, (map.get(g) ?? 0) + 1)),
-  );
-  return [...map.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+/* per-genre tally for the dial — counts titles, not appearances */
+export function genreStats(entries: Entry[]): GenreStat[] {
+  const map = new Map<string, GenreStat>();
+  for (const e of entries) {
+    for (const g of new Set(e.genres ?? [])) {
+      const s = map.get(g) ?? { name: g, count: 0, films: 0, series: 0, minutes: 0 };
+      s.count += 1;
+      if (e.type === 'movie') s.films += 1;
+      else s.series += 1;
+      s.minutes += watchMinutes(e);
+      map.set(g, s);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-/* ── original-header bindings ──────────────────────────────────────────── */
-
-export const ENTRIES = LIBRARY;
-
-export function orderedEntries(order: Order): Entry[] {
-  return sortedEntries(LIBRARY, order);
+/* TMDB page for a baked or imported entry ("movie-603" / "show-1399") */
+export function tmdbUrl(e: Entry): string | null {
+  const m = /^(movie|show)-(\d+)$/.exec(e.id);
+  return m ? `https://www.themoviedb.org/${m[1] === 'movie' ? 'movie' : 'tv'}/${m[2]}` : null;
 }
-
-const ALL_MIN = totalMinutes(LIBRARY);
-export const TOTAL_DHM = {
-  days: Math.floor(ALL_MIN / 1440),
-  hours: Math.floor((ALL_MIN % 1440) / 60),
-  minutes: ALL_MIN % 60,
-};
-
-const ADDED_MS = LIBRARY.map((e) => Date.parse(e.addedAt + 'T00:00:00Z'));
-export const SPAN = {
-  from: new Date(Math.min(...ADDED_MS)),
-  to: new Date(Math.max(...ADDED_MS)),
-};
-
-export const META = {
-  source: 'offline-seed',
-  generatedAt: '2025-01-01T00:00:00Z',
-  csvRows: LIBRARY.length,
-  includedStatuses: ['watching', 'following', 'stopped'],
-  excludeIfHidden: true,
-  excludedForLater: 0,
-  excludedHidden: 0,
-  failures: [] as string[],
-  totals: {
-    movies: LIBRARY.filter((e) => e.type === 'movie').length,
-    shows: LIBRARY.filter((e) => e.type === 'show').length,
-    entries: LIBRARY.length,
-  },
-};

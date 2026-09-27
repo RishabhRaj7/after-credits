@@ -1,71 +1,175 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { cssVar, ParticleField, resolveFontFamily } from '../lib/particles';
 
-export interface CutSpec {
+/* The cut between projections, driven by App in two phases:
+     in   shutters slam shut, a red beam sweeps, particles swarm into the
+          name of the next view; once it has formed (FORMED_MS) App swaps
+          the view underneath, in a transition so the swarm keeps moving
+     out  after the new view has painted: flash, the letters detonate, and
+          the shutters tear open (EXIT_MS later App clears the cut) */
+
+export const FORMED_MS = 820;
+export const EXIT_MS = 520;
+const SLATS = 7;
+const SLAM = [0.76, 0, 0.24, 1] as const;
+
+export interface Cut {
   label: string;
-  scene: string;
+  phase: 'in' | 'out';
 }
 
-const WIPE = [0.72, 0, 0.18, 1] as const;
+function Swarm({ label, phase }: Cut) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const fieldRef = useRef<ParticleField | null>(null);
+  const [fallback, setFallback] = useState(false);
 
-/**
- * The film-cut transition: a black leader wipes across, holds a beat with a
- * mono "CUT TO:" slate (plus a flash frame, like a splice), then wipes off
- * to reveal the freshly mounted view. The actual view swap happens under
- * the cover — no reload, no jank.
- */
-export default function CutTo({ cut }: { cut: CutSpec | null }) {
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setFallback(true);
+      return;
+    }
+    const narrow = window.innerWidth < 640;
+    let field: ParticleField;
+    try {
+      field = new ParticleField(canvas, {
+        gap: narrow ? 4 : 6,
+        dot: narrow ? 2 : 3,
+        radius: 0,
+        intro: 'scatter',
+        accentShare: 0.08,
+        // form fast and together: the name has to read before the swap
+        sweep: 0.12,
+        jitter: 0.08,
+        spring: 0.11,
+      });
+    } catch {
+      setFallback(true);
+      return;
+    }
+    fieldRef.current = field;
+    field.setColors({ ink: cssVar('--color-bone'), accent: cssVar('--color-blood') });
+    field.resize();
+    field.setShape(
+      { lines: [label.toUpperCase()], family: resolveFontFamily('font-display'), weight: 800, fill: 0.72, leading: 0.9, align: 'center' },
+      false,
+    );
+    return () => {
+      field.destroy();
+      fieldRef.current = null;
+    };
+  }, [label]);
+
+  useEffect(() => {
+    const field = fieldRef.current;
+    const canvas = ref.current;
+    if (phase !== 'out' || !field || !canvas) return;
+    const r = canvas.getBoundingClientRect();
+    field.burst(r.width / 2, r.height / 2, 30);
+    field.setMode('swarm');
+  }, [phase]);
+
+  return (
+    <>
+      <canvas ref={ref} className="absolute inset-x-0 top-1/2 h-[40vh] w-full -translate-y-1/2" aria-hidden />
+      {fallback && (
+        <div className="absolute inset-0 grid place-items-center font-display text-6xl font-extrabold uppercase text-bone sm:text-8xl">{label}</div>
+      )}
+    </>
+  );
+}
+
+/* a timecode that races while the cut is on screen */
+function Timecode() {
+  const [f, setF] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      setF(Math.floor(((now - start) / 1000) * 24 * 7));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    <span className="tabular-nums">
+      TC 00:{pad(Math.floor(f / 1440) % 60)}:{pad(Math.floor(f / 24) % 60)}:{pad(f % 24)}
+    </span>
+  );
+}
+
+export default function CutTo({ cut }: { cut: Cut | null }) {
+  const out = cut?.phase === 'out';
   return (
     <AnimatePresence>
       {cut && (
-        <motion.div key="cut" className="chrome-orig pointer-events-none fixed inset-0 z-[85]">
-          {/* black leader */}
+        <motion.div key="cut" className="pointer-events-none fixed inset-0 z-[85] overflow-hidden" aria-hidden>
+          {/* shutters: slam in on mount, tear open on exit */}
+          {Array.from({ length: SLATS }, (_, i) => (
+            <motion.div
+              key={i}
+              className="absolute inset-x-0 border-b border-line bg-ink"
+              style={{ top: `${(i / SLATS) * 100}%`, height: `${100 / SLATS + 0.2}%`, willChange: 'transform' }}
+              initial={{ x: i % 2 ? '100%' : '-100%' }}
+              animate={{ x: '0%' }}
+              exit={{ x: i % 2 ? '-100%' : '100%', transition: { duration: 0.42, delay: i * 0.025, ease: SLAM } }}
+              transition={{ duration: 0.34, delay: i * 0.03, ease: SLAM }}
+            />
+          ))}
+
+          {/* beam sweep while closing, horizon line while the name holds */}
           <motion.div
-            className="absolute inset-0 bg-black"
-            initial={{ clipPath: 'inset(0 100% 0 0)' }}
-            animate={{ clipPath: 'inset(0 0% 0 0)' }}
-            exit={{ clipPath: 'inset(0 0 0 100%)' }}
-            transition={{ duration: 0.34, ease: WIPE }}
+            className="absolute inset-y-0 w-px bg-blood"
+            initial={{ left: '-2%' }}
+            animate={{ left: '102%' }}
+            transition={{ duration: 0.5, delay: 0.12, ease: 'easeInOut' }}
           />
-          {/* splice flash */}
           <motion.div
-            className="absolute inset-0 bg-bone"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0, 0.85, 0] }}
-            transition={{ duration: 0.5, times: [0, 0.55, 0.62, 0.75], ease: 'linear' }}
+            className="absolute inset-x-0 top-1/2 h-px origin-center bg-blood"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: out ? 0 : 1 }}
+            transition={{ duration: out ? 0.2 : 0.5, delay: out ? 0 : 0.3, ease: SLAM }}
           />
-          {/* slate */}
-          <motion.div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.16, delay: 0.2 }}
-          >
-            <div className="font-tele text-[11px] tracking-[0.5em] text-blood">CUT TO:</div>
-            <div className="font-display text-5xl uppercase tracking-wide text-bone sm:text-7xl">
-              {cut.label}
-            </div>
-            <div className="mt-4 flex items-center gap-6 font-tele text-[10px] tracking-[0.25em] text-dim">
-              <span>{cut.scene}</span>
-              <span className="text-blood">TC 00:00:07:14</span>
-              <span>24 FPS</span>
-            </div>
+
+          {/* flash as the letters detonate */}
+          {out && (
+            <motion.div
+              className="absolute inset-0 bg-bone"
+              initial={{ opacity: 0.2 }}
+              animate={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            />
+          )}
+
+          <motion.div className="absolute inset-0" exit={{ opacity: 0, transition: { duration: 0.4 } }}>
+            <Swarm label={cut.label} phase={cut.phase} />
           </motion.div>
-          {/* red edge lines */}
+
+          {/* HUD */}
           <motion.div
-            className="absolute inset-x-0 top-[12%] h-px bg-blood/60"
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            exit={{ scaleX: 0 }}
-            transition={{ duration: 0.3, delay: 0.18 }}
-          />
+            className="label absolute inset-x-4 top-[calc(50%-23vh)] flex justify-between text-[9.5px] sm:inset-x-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: out ? 0 : 1 }}
+            transition={{ delay: out ? 0 : 0.25, duration: 0.2 }}
+          >
+            <span className="text-blood">Cut to</span>
+            <span className="text-fog">
+              <Timecode />
+            </span>
+          </motion.div>
           <motion.div
-            className="absolute inset-x-0 bottom-[12%] h-px bg-blood/60"
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            exit={{ scaleX: 0 }}
-            transition={{ duration: 0.3, delay: 0.22 }}
-          />
+            className="label absolute inset-x-4 bottom-[calc(50%-23vh)] flex justify-between text-[9.5px] text-dim sm:inset-x-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: out ? 0 : 1 }}
+            transition={{ delay: out ? 0 : 0.3, duration: 0.2 }}
+          >
+            <span>Projection change</span>
+            <span>24 fps · reel swap</span>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

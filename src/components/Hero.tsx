@@ -1,212 +1,162 @@
-import { useMemo, useRef } from 'react';
-import { motion, useMotionValue, useSpring } from 'framer-motion';
-import { ChevronDown, Info } from 'lucide-react';
-import CountUp from './CountUp';
-import { OrderToggle, ViewSwitcher, type ViewId } from './Controls';
-import GhostPosterWall from './GhostPosterWall';
-import GenreRadar from './GenreRadar';
-import type { Entry, GenreCount, LibraryStats, Order } from '../data/library';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowDown, ArrowUpRight } from 'lucide-react';
+import ParticleText from './ParticleText';
+import GenreDial from './GenreDial';
+import { fmtDur, fmtInt, fmtMonth, type Entry, type GenreStat, type LibraryStats } from '../data/library';
 
 interface Props {
-  order: Order;
-  view: ViewId;
-  onOrder: (o: Order) => void;
-  onSwitch: (v: ViewId) => void;
   entries: Entry[];
   stats: LibraryStats;
-  genres: GenreCount[];
+  genres: GenreStat[];
+  onEnterLog: () => void;
+  onAlmanac: () => void;
 }
 
-const rise = {
-  hidden: { opacity: 0, y: 34 },
-  show: (d: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.9, delay: d, ease: [0.16, 1, 0.3, 1] as const },
-  }),
-};
+const rise = (d: number) => ({
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.8, delay: d, ease: [0.16, 1, 0.3, 1] as const },
+});
 
-export default function Hero({ order, view, onOrder, onSwitch, entries, stats, genres }: Props) {
-  const years = `${stats.from.getUTCFullYear()} ————— ${stats.to.getUTCFullYear()}`;
+const AUTO_MS = 6500;
 
-  /* pointer parallax for the right-hand layers */
-  const rightRef = useRef<HTMLDivElement>(null);
-  const rawX = useMotionValue(0);
-  const rawY = useMotionValue(0);
-  const mx = useSpring(rawX, { stiffness: 60, damping: 18 });
-  const my = useSpring(rawY, { stiffness: 60, damping: 18 });
-  const radarRawX = useMotionValue(0);
-  const radarRawY = useMotionValue(0);
-  const radarX = useSpring(radarRawX, { stiffness: 60, damping: 18 });
-  const radarY = useSpring(radarRawY, { stiffness: 60, damping: 18 });
+export default function Hero({ entries, stats, genres, onEnterLog, onAlmanac }: Props) {
+  const readouts = useMemo(() => {
+    const films = entries.filter((e) => e.type === 'movie' && e.runtimeMinutes);
+    const avgFilm = films.length ? films.reduce((s, e) => s + e.runtimeMinutes!, 0) / films.length : 0;
+    const episodes = entries.reduce((s, e) => s + (e.type === 'show' ? (e.episodes ?? 0) : 0), 0);
+    const y0 = stats.from.getFullYear();
+    const y1 = stats.to.getFullYear();
+    return [
+      { lines: [`${stats.days} DAYS`], caption: 'of runtime, laid end to end' },
+      { lines: [`${fmtInt(stats.hours)} HOURS`], caption: 'every film and every episode, counted once' },
+      { lines: [`${stats.titles} TITLES`], caption: `logged ${fmtMonth(stats.from.getTime())} — ${fmtMonth(stats.to.getTime())}` },
+      { lines: [`${stats.films} FILMS`], caption: `averaging ${fmtDur(avgFilm)} each` },
+      { lines: [`${stats.series} SERIES`], caption: `${fmtInt(episodes)} episodes between them` },
+      { lines: [`${y0}—${y1}`], caption: `${y1 - y0 + 1} years on the log` },
+    ];
+  }, [entries, stats]);
 
-  const onMove = (e: React.MouseEvent) => {
-    const r = rightRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
-    const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
-    rawX.set(nx);
-    rawY.set(ny);
-    radarRawX.set(nx * 7);
-    radarRawY.set(ny * 5);
+  const [index, setIndex] = useState(0);
+  const [auto, setAuto] = useState(true);
+  useEffect(() => {
+    if (!auto || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t = window.setInterval(() => {
+      if (!document.hidden) setIndex((i) => (i + 1) % readouts.length);
+    }, AUTO_MS);
+    return () => window.clearInterval(t);
+  }, [auto, readouts.length]);
+  const pick = (i: number) => {
+    setAuto(false);
+    setIndex(i);
   };
 
-  const topGenre = useMemo(() => genres[0], [genres]);
+  const shapes = useMemo(() => readouts.map((r) => r.lines), [readouts]);
+  const current = readouts[index];
 
   return (
-    <section className="relative flex min-h-[100svh] flex-col overflow-hidden border-b border-line bg-ink">
-      {/* letterbox bar */}
-      <div className="relative z-20 flex items-center justify-between border-b border-line/60 bg-black px-4 py-2.5 font-tele text-[10px] tracking-[0.28em] text-dim sm:px-8">
-        <span className="text-fog">A PERSONAL SCREENING HISTORY</span>
-        <span className="hidden sm:block">{years}</span>
-        <span className="flex items-center gap-2">
-          <span className="rec-dot inline-block h-1.5 w-1.5 rounded-full bg-blood" />
-          LOG_001
-        </span>
-      </div>
+    <section id="top" className="relative border-b border-line">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-8">
 
-      <div className="relative z-10 mx-auto grid w-full max-w-[1680px] flex-1 grid-cols-1 lg:grid-cols-[1.04fr_0.96fr]">
-        {/* ── LEFT — the number, the math, the controls ── */}
-        <div className="relative flex flex-col justify-center px-4 pb-16 pt-14 sm:px-8 lg:px-12 lg:pb-24 lg:pt-20">
-          <motion.div
-            variants={rise}
-            initial="hidden"
-            animate="show"
-            custom={0.05}
-            className="flex items-center gap-3 font-tele text-[10px] tracking-[0.42em] text-fog sm:text-[11px]"
-          >
-            <span className="slab-line w-10" />
-            WHICH IS, CONSERVATIVELY,
-          </motion.div>
+        <div className="grid gap-12 pb-16 pt-12 lg:grid-cols-[1.12fr_0.88fr] lg:items-center lg:gap-10 lg:pb-20 lg:pt-16">
+          <div className="min-w-0">
+            <h1 className="sr-only">
+              After Credits — {stats.days} days of film and television: {stats.titles} titles, {stats.films} films and{' '}
+              {stats.series} series.
+            </h1>
 
-          <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-2">
-            <motion.h1
-              variants={rise}
-              initial="hidden"
-              animate="show"
-              custom={0.15}
-              className="flex items-baseline gap-5 font-display leading-[0.82]"
-            >
-              <CountUp
-                value={stats.days}
-                duration={2.9}
-                delay={0.35}
-                className="text-[clamp(96px,15vw,260px)] text-bone [text-shadow:0_0_60px_rgba(229,9,20,0.22)]"
-              />
-              <span className="pb-[0.06em] text-[clamp(30px,4.4vw,76px)] uppercase text-blood">
-                Days
-              </span>
-            </motion.h1>
-            <motion.div
-              variants={rise}
-              initial="hidden"
-              animate="show"
-              custom={0.3}
-              className="mb-2 flex items-center gap-4 font-display text-[clamp(26px,3.6vw,56px)]"
-            >
-              <span className="flex items-baseline gap-2">
-                <CountUp value={stats.hours} duration={3.1} delay={0.5} pad={2} className="text-outline" />
-                <span className="font-tele text-[11px] tracking-[0.3em] text-blood">HRS</span>
-              </span>
-              <span className="h-[0.9em] w-px bg-line" />
-              <span className="flex items-baseline gap-2">
-                <CountUp value={stats.minutesRemainder} duration={3.3} delay={0.55} pad={2} className="text-outline" />
-                <span className="font-tele text-[11px] tracking-[0.3em] text-blood">MIN</span>
-              </span>
+            <ParticleText
+              shapes={shapes}
+              index={index}
+              onAdvance={() => pick((index + 1) % readouts.length)}
+              className="-ml-1 h-[min(52vw,220px)] sm:h-[clamp(130px,19vw,300px)]"
+            />
+
+            {/* readout index */}
+            <motion.div {...rise(0.5)} className="mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line pt-4">
+              <p className="label text-fog" aria-live="polite">
+                <span className="text-blood">{String(index + 1).padStart(2, '0')}</span>
+                <span className="mx-2 text-rule">/</span>
+                {current.caption}
+              </p>
+              <div className="flex items-center gap-1" role="tablist" aria-label="Readouts">
+                {readouts.map((r, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    role="tab"
+                    aria-selected={i === index}
+                    aria-label={r.lines.join(' ')}
+                    onClick={() => pick(i)}
+                    className="group grid h-7 w-7 cursor-pointer place-items-center"
+                  >
+                    <span
+                      className={`block h-px transition-all duration-300 ${
+                        i === index ? 'w-5 bg-blood' : 'w-2.5 bg-rule group-hover:w-4 group-hover:bg-fog'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
             </motion.div>
+
+            <motion.p {...rise(0.6)} className="mt-8 max-w-[58ch] text-[15px] leading-relaxed text-fog sm:text-base">
+              Every film and series I have sat through since {stats.from.getFullYear()},{' '}
+              <span className="text-bone">laid end to end</span>. Two ways to walk it: a winding track
+              where binge weeks knot up and burst open, or a reel that counts it out year by year. Move
+              across the numerals — they come apart.
+            </motion.p>
+
+            <motion.dl {...rise(0.7)} className="mt-10 grid grid-cols-2 border-l border-t border-line sm:grid-cols-4">
+              {[
+                ['Films', fmtInt(stats.films)],
+                ['Series', fmtInt(stats.series)],
+                ['Hours', fmtInt(stats.hours)],
+                ['Genres', fmtInt(stats.genres)],
+              ].map(([k, v]) => (
+                <div key={k} className="border-b border-r border-line px-4 py-3.5">
+                  <dt className="label text-dim">{k}</dt>
+                  <dd className="mt-1 font-display text-3xl font-bold leading-none text-bone">{v}</dd>
+                </div>
+              ))}
+            </motion.dl>
+
+            <motion.div {...rise(0.8)} className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-4">
+              <button
+                type="button"
+                onClick={onEnterLog}
+                className="label group flex cursor-pointer items-center gap-3 border border-bone px-5 py-3.5 text-bone transition-colors hover:bg-bone hover:text-ink"
+              >
+                Enter the log
+                <ArrowDown size={13} className="transition-transform group-hover:translate-y-0.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onAlmanac}
+                className="label group flex cursor-pointer items-center gap-2 text-fog transition-colors hover:text-bone"
+              >
+                Read the almanac
+                <ArrowUpRight size={13} className="text-blood transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              </button>
+            </motion.div>
+
+            <p className="label mt-8 max-w-[70ch] normal-case leading-relaxed tracking-[0.04em] text-dim">
+              Runtime is an estimate: series count every episode on TMDB, so shows still airing — or
+              abandoned part-way — can over- or under-state what was actually watched.
+            </p>
           </div>
 
-          <motion.p
-            variants={rise}
-            initial="hidden"
-            animate="show"
-            custom={0.42}
-            className="mt-6 max-w-xl text-sm leading-relaxed text-fog sm:text-base"
-          >
-            Every film and series I sat through — <span className="text-bone">{stats.movies} films</span>,{' '}
-            <span className="text-bone">{stats.shows} series</span>,{' '}
-            <span className="text-bone">{stats.entries} titles</span> — laid end to end in one
-            continuous runtime.
-            {topGenre && (
-              <>
-                {' '}
-                The dial on the right reads the library back by genre —{' '}
-                <span className="text-bone">{topGenre.name}</span> leads with{' '}
-                <span className="text-blood">{topGenre.count}</span> titles.
-              </>
-            )}
-          </motion.p>
-
           <motion.div
-            variants={rise}
-            initial="hidden"
-            animate="show"
-            custom={0.5}
-            className="mt-3 flex max-w-xl items-start gap-2 font-tele text-[9.5px] leading-relaxed tracking-[0.08em] text-dim"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="min-w-0"
           >
-            <Info size={12} className="mt-px shrink-0" />
-            <span>
-              APPROXIMATION: SERIES TIME = EPISODES × AVERAGE EPISODE LENGTH; ONGOING SHOWS
-              UNDERCOUNT UNTIL ALL EPISODES ARE REFLECTED.
-            </span>
+            <GenreDial genres={genres} totalTitles={stats.titles} />
           </motion.div>
-
-          <motion.div
-            variants={rise}
-            initial="hidden"
-            animate="show"
-            custom={0.62}
-            className="mt-12 grid max-w-3xl gap-8 md:grid-cols-[auto_1fr] md:items-end"
-          >
-            <OrderToggle order={order} onChange={onOrder} />
-            <ViewSwitcher view={view} onSwitch={onSwitch} />
-          </motion.div>
-        </div>
-
-        {/* ── RIGHT — ghost poster wall behind, genre radar in front ── */}
-        <div
-          ref={rightRef}
-          onMouseMove={onMove}
-          onMouseLeave={() => {
-            rawX.set(0);
-            rawY.set(0);
-            radarRawX.set(0);
-            radarRawY.set(0);
-          }}
-          className="relative min-h-[600px] lg:min-h-0"
-        >
-          <GhostPosterWall entries={entries} mx={mx} my={my} />
-          <div className="relative z-10 flex h-full items-center justify-center p-5 sm:p-8">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1.1, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
-              style={{ x: radarX, y: radarY }}
-              className="w-full max-w-[560px]"
-            >
-              <GenreRadar genres={genres} totalTitles={stats.entries} totalGenres={stats.genres} />
-            </motion.div>
-          </div>
         </div>
       </div>
-
-      {/* scroll cue */}
-      <motion.div
-        className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.6, duration: 1 }}
-      >
-        <div className="flex flex-col items-center gap-1.5 font-tele text-[9px] tracking-[0.34em] text-dim">
-          <span>SCROLL — START AT FRAME 00001</span>
-          <motion.span
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <ChevronDown size={14} className="text-blood" />
-          </motion.span>
-        </div>
-      </motion.div>
     </section>
   );
 }

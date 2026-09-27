@@ -216,7 +216,7 @@ export default function EditorPanel({ entries, onCommit }: Props) {
   };
 
   return (
-    <div className="editor-panel flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-line px-5 py-3">
         <div className="relative flex-1">
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim" />
@@ -255,8 +255,8 @@ export default function EditorPanel({ entries, onCommit }: Props) {
       </div>
 
       <div className="border-t border-line px-5 py-2.5 font-tele text-[8.5px] leading-relaxed tracking-[0.14em] text-dim">
-        FIX A MISTAKE → SAVE. THEN <span className="text-blood">EXPORT JSON</span> AND REPLACE{' '}
-        <span className="text-bone">data/baked-library.json</span> IN YOUR REPO — COMMIT TO PUBLISH.
+        WITH THE LIVE LOG ON, SAVE PUBLISHES INSTANTLY. OTHERWISE <span className="text-blood">EXPORT JSON</span> AND REPLACE{' '}
+        <span className="text-bone">data/baked-library.json</span> IN YOUR REPO.
       </div>
     </div>
   );

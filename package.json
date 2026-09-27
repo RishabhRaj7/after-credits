@@ -1,20 +1,24 @@
 {
-  "name": "react-vite-tailwind",
+  "name": "after-credits",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "serve": "node server.mjs",
+    "typecheck": "tsc --noEmit",
+    "bake": "node scripts/bake.mjs",
+    "enrich": "node scripts/enrich.mjs",
+    "seed": "node scripts/seed-offline.mjs",
+    "fold-live": "node scripts/fold-live.mjs"
   },
   "dependencies": {
-    "clsx": "2.1.1",
     "framer-motion": "^13.2.0",
     "lucide-react": "^1.43.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "tailwind-merge": "3.4.0"
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.17",
