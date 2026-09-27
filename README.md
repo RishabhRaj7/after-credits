@@ -108,33 +108,89 @@ Made a mistake? The list under the search removes live titles, and
 **Edit library** edits or deletes any title (baked ones too) — saves publish
 straight to the gist.
 
-#### Once in a while: fold the live titles into the bake
+#### Once in a while: make live titles permanent ("fold" them into the bake)
 
-Nothing breaks if you never do this — the gist can hold hundreds of titles.
-Folding just keeps the gist small and moves posters from TMDB's CDN into the
-repo. Every few months, or whenever you're committing anyway:
+Titles you log on the site live in the gist. They are already visible to every
+visitor, so nothing breaks if you never do this — the gist can hold hundreds of
+titles. Folding copies them into the repo itself (`data/baked-library.json`)
+and moves their posters from TMDB's CDN into `public/posters/`, so the site no
+longer depends on the gist for them. Every few months is plenty.
+
+Run these from the **main project folder** (not a worktree).
+
+**1 · Get the latest `main`**
 
 ```bash
-# 1. pull the gist into data/baked-library.json, download new posters,
-#    then empty the gist (--clear needs the same gist-scoped token)
-VITE_LIBRARY_GIST_ID=your_id GITHUB_TOKEN=ghp_xxx npm run fold-live -- --clear
+git checkout main
+git pull
+```
 
-# 2. rebuild the site with the updated bake
+**2 · Set the gist id and token for this terminal session** — the same
+gist-scoped token you pasted into **Keys** on the site.
+
+macOS / Linux / Git Bash:
+
+```bash
+export VITE_LIBRARY_GIST_ID=your_gist_id
+export GITHUB_TOKEN=ghp_your_token
+```
+
+Windows PowerShell:
+
+```powershell
+$env:VITE_LIBRARY_GIST_ID="your_gist_id"; $env:GITHUB_TOKEN="ghp_your_token"
+```
+
+The id can be the bare id or the full `https://gist.github.com/...` URL.
+
+**3 · Fold the gist into the bake**
+
+```bash
+npm run fold-live
+```
+
+This reads the gist, applies every addition, edit and deletion you made on the
+site to `data/baked-library.json`, and downloads new posters. It ends with a
+line like:
+
+```
+✓ Folded 1 changed/new and 0 removed titles → 355 in data/baked-library.json (1 posters downloaded).
+```
+
+The gist is left untouched at this point, so it is safe to re-run.
+
+**4 · Rebuild and check locally**
+
+```bash
 npm run build
+npm run serve
+```
 
-# 3. commit the updated data, posters and build
+Open the address it prints and confirm the new titles appear with posters.
+
+**5 · Commit and push**
+
+```bash
 git add data/baked-library.json public/posters dist
 git commit -m "Fold live log into bake"
 git push
 ```
 
-On Windows PowerShell set the variables first:
-`$env:VITE_LIBRARY_GIST_ID="your_id"; $env:GITHUB_TOKEN="ghp_xxx"; npm run fold-live -- --clear`
+If your host builds from the repo (Vercel / Netlify), the push deploys it.
 
-If your host builds from the repo (Vercel / Netlify), the push deploys it; the
-`VITE_LIBRARY_GIST_ID` variable stays set, so live logging carries on against
-the now-empty gist. Skipping `--clear` is safe too — folded titles in the
-gist simply match the bake and are not shown twice.
+**6 · Optional: empty the gist**
+
+Once the deploy is live:
+
+```bash
+npm run fold-live -- --clear
+```
+
+This folds again (a no-op now) and then empties the gist, so it only holds what
+you log from here on. `VITE_LIBRARY_GIST_ID` stays set on the host, so
+**Log a title** keeps working against the empty gist. Skipping this step is
+safe too — folded titles in the gist match the bake by id or by
+type + title + year and are never shown twice.
 
 **Troubleshooting**
 
