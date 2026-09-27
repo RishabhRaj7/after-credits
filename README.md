@@ -1,134 +1,118 @@
-# WATCH LOG — a personal screening history
+# AFTER CREDITS — a personal screening log
 
-A single-page, scrollable timeline of everything you've watched — not a
-dashboard, not a spreadsheet with posters. Dark, poster-forward, cinematic.
-Two selectable projections of the same data share one hero and one
-live-counting watch-time total:
+Every film and series I've watched, laid end to end. A single page, dark and
+typographic: the headline numbers are printed in particles, the library is read
+back as an almanac, and the log itself can be projected two ways.
 
-- **CLUSTER & BURST** — the history as a winding track. Quiet stretches coast
-  past as single posters; binge weeks knot up and *detonate* into a fan of
-  posters as you scroll through them. The line draws itself in.
-- **THE REEL** — a central spine whose thickness and glow scale with each
-  year's watch density, stacked odometer year numerals that roll into place,
-  alternating left/right title blocks, full-bleed decade **intermissions**,
-  sticky multi-select year/decade filters that physically shorten the page,
-  and a seek-bar scrubber rail on the edge of the screen.
-
-Shared across both: an order toggle (**watched order** = `added_at`, vs
-**release order** = TMDB premiere date — true reflow, no reload), a ~2×
-spring poster zoom on hover, click-to-expand title cards, and a
-**CUT TO:** film-splice wipe when you change views mid-visit.
+- **Hero** — a particle readout that cycles through the library's numbers (days,
+  hours, titles, films, series, span). Move across it and the points scatter;
+  click to advance. Beside it, a radial bar chart of titles by genre.
+- **Almanac** — titles logged per year (backlog days separated out), release
+  decades, screening day, the median gap between premiere and log, where the
+  time went, and the longest, oldest and newest titles.
+- **The log** — one sticky control deck drives both projections:
+  - **Cluster & Burst**: a winding track. Single nights sit alone, runs of a few
+    titles fan open as you scroll, and big clusters lay out as a contact sheet.
+  - **The Reel**: every title in line, year by year, on a spine whose width
+    carries each year's density, with decade intermissions and a seek rail.
+  - Filter by type and year/decade, flip watched ⇄ release order and oldest ⇄
+    newest. Selections persist across both views.
+- **Title card** — click any poster: facts, synopsis, share of total time, TMDB
+  link, and ← → to step through the current sequence.
+- **Search** — press `/` (or ⌘K / Ctrl+K) to find any title.
 
 ## Quick start
 
 ```bash
 npm install
-npm run build        # static site → dist/ (deploy Vercel/Netlify/any static host)
 npm run dev          # local preview
+npm run build        # typecheck + static single-file site → dist/
+npm run serve        # optional: serve dist/ with the library store API
 ```
 
-The site bakes `data/enriched-library.json` in at build time. **No backend,
-no runtime API calls, no loading spinners.**
+The library is baked in at build time from `data/baked-library.json`; posters
+live in `public/posters/`. No runtime API calls.
 
-## The data pipeline (build-time only)
+## Data
 
+### Bake your export (permanent, for every visitor)
+
+```bash
+TMDB_API_KEY=your_v3_key npm run bake       # or TMDB_READ_ACCESS_TOKEN=…
+npm run build
 ```
-library.csv ──► filter by list_status ──► enrich ──► data/enriched-library.json
-                                              │
-                                    TMDB (with a key)   or   offline seed (no key)
-```
 
-### 1 · Drop in your export
+`scripts/bake.mjs` reads `library.csv`, keeps rows whose `list_status` is
+`watching`, `following` or `stopped` (and not hidden), enriches each from TMDB
+and downloads its poster. Flags: `--limit 10`, `--no-posters`, `--csv path`.
 
-Replace the generated sample `library.csv` with your real export. Expected
-columns (BOM at the start of the file is fine — the parser strips it):
+Expected columns (a BOM is fine):
 
 ```
 type, title, original_title, year, tvdb_id, tmdb_id, favorite,
 list_status, added_at, for_later_at, stopped_watching_at, hidden_at
 ```
 
-There is **no "date watched" field** by design — `added_at` is used as the
-watch-order proxy everywhere (nothing is faked). `year` is release year.
-`tmdb_id` is the primary identifier for both movies and shows; `tvdb_id`
-(shows only) is kept in the data but unused — TMDB is the source for both.
+### Full refresh pipeline (first run / re-seeding)
 
-### 2 · Choose which statuses count as "watched" — ONE place
-
-**`scripts/lib/config.mjs`**:
-
-```js
-export const INCLUDED_STATUSES = ['watching', 'following', 'stopped'];
-export const EXCLUDE_IF_HIDDEN = true;
-```
-
-`for_later` (queued, never started) and anything with `hidden_at` set are
-excluded by default. Change that one array and re-run the pipeline — no
-other file touches status logic.
-
-### 3a · Enrich from TMDB (real posters + exact numbers)
+The original seeding pipeline is kept for a from-scratch data refresh:
 
 ```bash
-TMDB_API_KEY=YOUR_V3_KEY      node scripts/enrich.mjs
-# or the v4 read token:
-TMDB_READ_ACCESS_TOKEN=XXXX   node scripts/enrich.mjs
+node scripts/build-pool.mjs          # once: IMDb public datasets → curated pool (offline runtimes)
+node scripts/seed-offline.mjs        # library.csv → data/enriched-library.json, no key needed
+TMDB_API_KEY=your_v3_key npm run enrich   # enrich from TMDB (cached in scripts/.cache/tmdb)
 ```
 
-Free key: <https://www.themoviedb.org/settings/api>
+Which statuses count lives in one place: `scripts/lib/config.mjs`. Titles
+without a runtime get an average duration, flagged as estimated. `enrich.mjs`
+merges rather than clobbers, re-runs only fetch what's new, and lookup
+failures are recorded in `meta.failures` instead of being dropped.
 
-- Looks up `/movie/{tmdb_id}` or `/tv/{tmdb_id}`; falls back to title+year
-  **search** when the id is missing (keeps partial exports usable).
-- Fetches poster/backdrop path, release/first-air date, genres, overview,
-  runtime (movies) and `episode_run_time` + `number_of_episodes` (shows).
-- ~130 ms between live calls, 429/5xx retried with backoff, aggressive disk
-  cache in `scripts/.cache/tmdb/` — re-runs only fetch what's new.
-- **Failures are flagged, never silently dropped**: entries get
-  `flags: ['tmdb-lookup-failed']` and land in `meta.failures` for inspection.
-- The key stays server-side — it never appears in client code or the output
-  JSON. `--limit=8` for a smoke test, `--dry` to just print the filter report,
-  `--force` to ignore cache.
+### Import in the browser (no rebuild)
 
-### 3b · No key? Offline seed (what the committed data uses right now)
+Footer → **Import data**: drop in the CSV with a TMDB key. The result is stored
+on the server when `npm run serve` is running, otherwise in the browser. The
+**Edit library** tab fixes individual titles and exports corrected JSON to
+replace `data/baked-library.json`.
 
-```bash
-node scripts/build-pool.mjs     # once: IMDb public datasets → curated pool
-node scripts/build-sample.mjs   # optional: regenerate the sample library.csv
-node scripts/seed-offline.mjs   # library.csv → data/enriched-library.json
-```
+## How the numbers are counted
 
-- **Movie runtimes are real** (IMDb). **Show episode counts are estimated** —
-  every such entry is flagged `episodesEstimated: true`, and the estimate is
-  labeled in the UI. Re-run 3a with a TMDB key and real numbers + posters
-  replace it (the enrich step merges, it doesn't clobber).
-- With no poster paths available, the UI renders deterministic typographic
-  title cards (palette hashed per-title) — real posters slot in automatically.
+| | watch time |
+|---|---|
+| film | runtime · 120 min when unknown |
+| series | episodes × episode length · when TMDB has no length: 24 min for animation and straight comedy, 45 min otherwise |
 
-### Watch-time math
-
-| type  | total watch time                                   |
-|-------|----------------------------------------------------|
-| movie | `runtime`                                          |
-| show  | `episode_run_time[0] × number_of_episodes`         |
-
-Shows are labeled an **approximation** (ongoing series undercount until all
-episodes are reflected); the hero prints the caveat next to the counter.
+- **Watched order** is `added_at` — the export has no watch date.
+- **Backlog days** — a day with 12+ titles logged is treated as catching the
+  record up, not a binge: labelled as such in the log and excluded from the
+  almanac's timing stats.
+- TMDB's TV and film genre names are merged (e.g. "Sci-Fi & Fantasy" and
+  "Science Fiction" → Sci-Fi, Fantasy) so the genre dial counts each once.
+- Series count every episode listed on TMDB, so shows still airing or dropped
+  part-way can over- or under-count.
 
 ## Stack
 
-Vite + React 19 + Tailwind 4 + Framer Motion, TanStack-free: instead of
-virtualization the long reel leans on native `content-visibility: auto` +
-section-level collapse animations so filter toggles stay smooth with the full
-600+ title set loaded. Framer MotionValue-driven transforms for all
-scroll-linked motion (zero React re-renders on scroll).
+Vite + React 19 + Tailwind 4 + Framer Motion, built into a single HTML file
+(`vite-plugin-singlefile`). The particle engine (`src/lib/particles.ts`) is
+plain canvas 2D, shared with The Daily Index; it pauses off-screen and renders
+one static frame for reduced-motion readers. Fonts: Big Shoulders Display,
+Archivo, JetBrains Mono.
 
-## Controls cheat-sheet
+```
+src/
+  App.tsx                 state, filter pipeline, page composition
+  data/library.ts         types, genre normalisation, watch time, clustering
+  data/almanac.ts         derived facts for the almanac
+  data/importer.ts        CSV parsing, TMDB enrichment, persistence
+  lib/particles.ts        particle engine
+  components/             Hero, GenreDial, Almanac, ControlDeck, DetailPanel,
+                          SearchPalette, Footer, panels…
+  views/                  ClusterBurst, MobileTrack, Reel
+scripts/bake.mjs          CSV → baked JSON + posters
+scripts/enrich.mjs, seed-offline.mjs, build-pool.mjs, lib/   full refresh pipeline
+server.mjs                zero-dependency static server + /api/library store
+```
 
-| control | where | effect |
-|---|---|---|
-| TOTAL RUNTIME counter | hero | counts 0 → real days/hrs/min on entry |
-| SEQUENCE toggle | hero + top bar | watched order ⇄ release order, true reflow |
-| PROJECTION switch | hero + top bar | CUT TO: wipe between Cluster & Burst ⇄ The Reel |
-| poster hover | both views | ~2× spring zoom, neighbors give way |
-| poster click | both views | title card panel (facts + TMDB synopsis when enriched) |
-| REEL FILTER chips | The Reel (sticky) | deselect a year/decade → reel collapses live, page literally shortens |
-| seek rail | The Reel (right edge) | one dot per year, click to scrub |
+Metadata and posters via [TMDB](https://www.themoviedb.org). This product uses
+the TMDB API but is not endorsed or certified by TMDB.

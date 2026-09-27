@@ -28,9 +28,8 @@ interface Props {
   onImported: (entries: Entry[]) => Promise<void>;
   onCommit: (entries: Entry[]) => Promise<void>;
   entries: Entry[];
-  activeCount: number;
   storeMode: StoreMode;
-  onRestoreSample: () => Promise<void>;
+  onRestore: () => Promise<void>;
   initialTab?: 'import' | 'edit';
 }
 
@@ -40,7 +39,7 @@ const field =
 const MODE_LABEL: Record<StoreMode, string> = {
   server: 'SERVER STORE ACTIVE',
   browser: 'BROWSER STORE ACTIVE',
-  sample: 'SAMPLE LIBRARY ACTIVE',
+  sample: 'BAKED LIBRARY ACTIVE',
 };
 
 export default function ImportPanel({
@@ -49,9 +48,8 @@ export default function ImportPanel({
   onImported,
   onCommit,
   entries,
-  activeCount,
   storeMode,
-  onRestoreSample,
+  onRestore,
   initialTab = 'import',
 }: Props) {
   const [tab, setTab] = useState<'import' | 'edit'>(initialTab);
@@ -114,7 +112,7 @@ export default function ImportPanel({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -123,7 +121,7 @@ export default function ImportPanel({
           }}
         >
           <motion.div
-            className="import-panel chrome-orig relative flex max-h-[88vh] w-full max-w-2xl flex-col border border-line bg-coal shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)]"
+            className="relative flex max-h-[88vh] w-full max-w-2xl flex-col border border-line bg-coal "
             initial={{ opacity: 0, y: 26, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
@@ -133,7 +131,7 @@ export default function ImportPanel({
             <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
               <div className="flex items-center gap-2.5">
                 <Database size={14} className="text-blood" />
-                <span className="font-display text-base tracking-[0.14em] text-bone">
+                <span className="font-display text-lg font-bold tracking-[0.1em] text-bone">
                   DATA IMPORT
                 </span>
                 <span className="hidden font-tele text-[9px] tracking-[0.26em] text-dim sm:block">
@@ -183,15 +181,15 @@ export default function ImportPanel({
                   <span className={storeMode === 'server' ? 'text-blood' : ''}>
                     {MODE_LABEL[storeMode]}
                   </span>{' '}
-                  · <span className="text-bone">{activeCount} TITLES</span>
+                  · <span className="text-bone">{entries.length} TITLES</span>
                 </span>
                 {storeMode !== 'sample' && (
                   <button
-                    onClick={onRestoreSample}
+                    onClick={onRestore}
                     disabled={busy}
                     className="flex cursor-pointer items-center gap-1.5 font-tele text-[9px] tracking-[0.18em] text-dim transition-colors hover:text-bone disabled:opacity-40"
                   >
-                    <RotateCcw size={10} /> RESTORE SAMPLE
+                    <RotateCcw size={10} /> RESTORE BAKED LIBRARY
                   </button>
                 )}
               </div>
@@ -282,7 +280,7 @@ export default function ImportPanel({
                   </div>
                   <div className="mt-2 h-[3px] bg-line">
                     <div
-                      className="h-full bg-blood shadow-[0_0_10px_rgba(229,9,20,0.8)] transition-[width] duration-200"
+                      className="h-full bg-blood transition-[width] duration-200"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -343,7 +341,7 @@ export default function ImportPanel({
                 <button
                   onClick={run}
                   disabled={!ready || busy}
-                  className="flex cursor-pointer items-center gap-2 bg-blood px-5 py-2 font-tele text-[10px] tracking-[0.2em] text-white shadow-[0_0_20px_rgba(229,9,20,0.45)] transition-all hover:bg-ember disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none"
+                  className="flex cursor-pointer items-center gap-2 bg-blood px-5 py-2 font-tele text-[10px] tracking-[0.2em] text-white transition-all hover:bg-ember disabled:cursor-not-allowed disabled:opacity-35"
                 >
                   <Upload size={12} /> IMPORT {parsed ? parsed.rows.length : ''}
                 </button>

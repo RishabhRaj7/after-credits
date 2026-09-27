@@ -1,26 +1,30 @@
 @import "tailwindcss";
-@import "./responsive.css";
 
+/* One palette, one accent. Surfaces step up in small increments; everything
+   structural is a 1px hairline. The accent marks signal (the active control,
+   the playhead, a lit particle) and nothing else. */
 @theme {
-  --color-ink: #0a0a0c;
-  --color-coal: #121215;
-  --color-panel: #17171b;
-  --color-bone: #ece7df;
-  --color-fog: #a9a49d;
-  --color-dim: #6d6a65;
-  --color-line: #26262b;
-  --color-smoke: #16161a;
-  --color-blood: #e50914;
-  --color-ember: #ff2b38;
+  --color-ink: #09090b;
+  --color-coal: #0e0e11;
+  --color-panel: #131317;
+  --color-smoke: #18181d;
+  --color-line: #24242a;
+  --color-rule: #34343c;
+  --color-bone: #eeeae3;
+  --color-fog: #a3a09a;
+  --color-dim: #6f6c67;
+  --color-blood: #ff4533;
+  --color-ember: #ff7a68;
 
-  --font-display: "Bebas Neue", "Archivo", sans-serif;
+  --font-display: "Big Shoulders Display", "Archivo", sans-serif;
   --font-body: "Archivo", system-ui, sans-serif;
-  --font-tele: "IBM Plex Mono", monospace;
+  --font-tele: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 }
 
 html {
   background: var(--color-ink);
-  scroll-behavior: smooth;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -28,27 +32,37 @@ body {
   color: var(--color-bone);
   background: var(--color-ink);
   overflow-x: hidden;
+  min-width: 300px;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(229, 9, 20, 0.85);
+  background: var(--color-blood);
   color: #fff;
 }
 
-/* thin dark scrollbar to keep the projection-room mood */
+:focus-visible {
+  outline: 1px solid var(--color-blood);
+  outline-offset: 3px;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0c;
+  background: var(--color-ink);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a30;
-  border-radius: 6px;
-  border: 2px solid #0a0a0c;
+  background: var(--color-line);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #e50914;
+  background: var(--color-rule);
 }
 
 .font-tele {
@@ -58,143 +72,42 @@ body {
   font-family: var(--font-display);
 }
 
-/* hot spine segment pulses faintly */
-@keyframes spinePulse {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.35);
-  }
-}
-.spine-hot {
-  animation: spinePulse 2.4s ease-in-out infinite;
+/* the mono micro-label used for every caption, axis and control */
+.label {
+  font-family: var(--font-tele);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-/* film grain drift */
-@keyframes grainShift {
-  0% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-2%, 1%);
-  }
-  50% {
-    transform: translate(1%, -2%);
-  }
-  75% {
-    transform: translate(-1%, 2%);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
+/* a horizontal strip that scrolls on narrow screens without a visible bar */
+.strip {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
-.grain-layer {
-  animation: grainShift 0.9s steps(4) infinite;
+.strip::-webkit-scrollbar {
+  display: none;
 }
 
-/* flicker for the NOW playhead label */
-@keyframes softFlicker {
-  0%,
-  100% {
-    opacity: 0.9;
-  }
-  50% {
-    opacity: 0.55;
-  }
-}
-.flicker {
-  animation: softFlicker 1.8s ease-in-out infinite;
-}
-
-/* ── original header chrome (scoped so the views keep their own faces) ── */
-.chrome-orig {
-  --font-display: "Anton", "Arial Narrow", Impact, sans-serif;
-  --font-tele: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
-}
-
-.text-outline {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgba(236, 231, 223, 0.28);
-}
-
-/* red-stroked glyph used in the view headers (& in Cluster & Burst, REEL) */
-.text-outline-blood {
-  color: transparent;
-  -webkit-text-stroke: 2px var(--color-blood);
-}
-
-.slab-line {
-  background: linear-gradient(90deg, transparent, rgba(229, 9, 20, 0.7), transparent);
-  height: 1px;
-}
-
-@keyframes rec-blink {
+@keyframes blink {
   0%, 55% { opacity: 1; }
-  56%, 100% { opacity: 0.25; }
+  56%, 100% { opacity: 0.2; }
 }
-.rec-dot { animation: rec-blink 1.6s steps(1) infinite; }
+.blink {
+  animation: blink 1.6s steps(1) infinite;
+}
 
-/* slow drifting poster wall in the hero */
-@keyframes wall-drift-l { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@keyframes wall-drift-r { from { transform: translateX(-50%); } to { transform: translateX(0); } }
-
-/* typographic fallback poster texture */
+/* typographic fallback card when a title has no poster */
 .poster-seed {
-  background-image: radial-gradient(
-      120% 90% at 20% 0%,
-      rgba(255, 255, 255, 0.07),
-      transparent 55%
-    ),
-    radial-gradient(120% 120% at 100% 100%, rgba(0, 0, 0, 0.55), transparent 60%);
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.05), transparent 45%);
 }
 
-/* slow breathing for the ghost poster wall */
-@keyframes wall-breathe {
-  0%,
-  100% {
-    transform: scale(1) rotate(-4deg);
+@media (prefers-reduced-motion: reduce) {
+  .blink {
+    animation: none;
   }
-  50% {
-    transform: scale(1.07) rotate(-3.2deg);
+  html {
+    scroll-behavior: auto;
   }
-}
-.wall-breathe {
-  animation: wall-breathe 26s ease-in-out infinite;
-}
-
-/* ── top-N range slider, styled to the projection-room chrome ── */
-input[type="range"].genre-range {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 2px;
-  background: linear-gradient(90deg, var(--color-blood), var(--color-line));
-  outline: none;
-  cursor: ew-resize;
-}
-input[type="range"].genre-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: var(--color-ember);
-  border: 2px solid var(--color-ink);
-  box-shadow: 0 0 12px rgba(229, 9, 20, 0.8);
-  transform: rotate(45deg);
-  cursor: ew-resize;
-  transition: transform 0.15s ease;
-}
-input[type="range"].genre-range::-webkit-slider-thumb:hover {
-  transform: rotate(45deg) scale(1.2);
-}
-input[type="range"].genre-range::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border-radius: 0;
-  background: var(--color-ember);
-  border: 2px solid var(--color-ink);
-  box-shadow: 0 0 12px rgba(229, 9, 20, 0.8);
-  transform: rotate(45deg);
-  cursor: ew-resize;
 }
